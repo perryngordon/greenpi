@@ -1,0 +1,385 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Greenhouse Dashboard</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js@4"></script>
+    <style>
+        body { background-color: #f0fdf4; scroll-behavior: smooth; }
+        .card { background: white; border-radius: 1rem; box-shadow: 0 4px 6px -1px rgb(0 0 0 / 0.1); }
+        .nav-link { transition: all 0.3s; }
+        .nav-link:hover { color: #f0fdf4; background: #16a34a; border-radius: 0.5rem; }
+        .section { display: none; }
+        .section.active { display: block; }
+    </style>
+</head>
+<body class="font-sans text-gray-900">
+    <nav class="bg-green-600 p-4 text-white flex justify-between items-center shadow-lg sticky top-0 z-50">
+        <h1 class="text-2xl font-bold cursor-pointer" onclick="showSection('home')">🌿 Greenhouse</h1>
+        <div class="space-x-4">
+            <a href="javascript:void(0)" onclick="showSection('home')" class="nav-link px-3 py-1">Home</a>
+            <a href="javascript:void(0)" onclick="showSection('sensors')" class="nav-link px-3 py-1">Sensors</a>
+            <a href="javascript:void(0)" onclick="showSection('wiki')" class="nav-link px-3 py-1">Wiki</a>
+            <a href="javascript:void(0)" onclick="showSection('config')" class="nav-link px-3 py-1">Config</a>
+        </div>
+    </nav>
+
+    <main class="container mx-auto p-6">
+        <!-- Home Section -->
+        <section id="home" class="section active">
+            <header class="mb-8 text-center">
+                <h2 class="text-5xl font-bold text-green-800 mb-4">Welcome to your Greenhouse</h2>
+                <p class="text-xl text-gray-600">Your automated growing space is active and monitoring.</p>
+            </header>
+            <div class="grid grid-cols-1 md:grid-cols-2 gap-8">
+                <div class="card p-8">
+                    <h3 class="text-2xl font-bold mb-4">Quick Stats</h3>
+                    <p class="text-gray-600">All systems nominal. Sensors are reporting steady data.</p>
+                </div>
+                <div class="card p-8">
+                    <h3 class="text-2xl font-bold mb-4">System Status</h3>
+                    <p class="text-green-600 font-bold">Online & Connected</p>
+                </div>
+            </div>
+        </section>
+
+        <!-- Sensors Section -->
+        <section id="sensors" class="section">
+            <header class="mb-8 flex items-center justify-between flex-wrap gap-4">
+                <div>
+                    <h2 class="text-3xl font-semibold text-green-800">Sensors</h2>
+                    <p class="text-gray-600">Real-time hardware monitoring.</p>
+                </div>
+                <label class="flex items-center space-x-2 text-sm font-medium text-gray-700">
+                    <input type="checkbox" id="auto-refresh" class="h-4 w-4 text-green-600" onchange="toggleAutoRefresh()">
+                    <span>Auto-refresh (2s)</span>
+                </label>
+            </header>
+            <div id="sensor-list" class="grid grid-cols-1 md:grid-cols-3 gap-6">
+                <!-- Sensors will be loaded here -->
+            </div>
+            <div id="details" class="hidden card p-6 mt-8 border-2 border-green-200">
+                <h2 id="details-title" class="text-xl font-bold mb-4">Sensor Details</h2>
+                <div id="details-content"></div>
+                <button onclick="hideDetails()" class="mt-4 bg-green-600 text-white px-4 py-2 rounded">Back to List</button>
+            </div>
+        </section>
+
+        <!-- Wiki Section -->
+        <section id="wiki" class="section">
+            <header class="mb-8">
+                <h2 class="text-3xl font-semibold text-green-800">Garden Wiki</h2>
+                <p class="text-gray-600">Knowledge base for your garden.</p>
+            </header>
+            <div class="card p-8">
+                <p class="text-gray-700">The wiki is currently being populated. <br>Add your growing notes, plant guides, and schedules here.</p>
+            </div>
+        </section>
+
+        <!-- Config Section -->
+        <section id="config" class="section">
+            <header class="mb-8">
+                <h2 class="text-3xl font-semibold text-green-800">Configuration</h2>
+                <p class="text-gray-600">Manage network and hardware settings.</p>
+            </header>
+            <div class="grid grid-cols-1 lg:grid-cols-2 gap-8">
+                <!-- AP Mode Panel -->
+                <div class="card p-6">
+                    <h3 class="text-xl font-bold mb-4 border-b pb-2">AP Mode Configuration</h3>
+                    <form id="ap-config-form" class="space-y-4">
+                        <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+                            <div>
+                                <label class="block text-sm font-medium text-gray-700">SSID</label>
+                                <input type="text" id="config-ssid" name="ssid" class="mt-1 block w-full border border-gray-300 rounded-md shadow-sm p-2">
+                            </div>
+                            <div>
+                                <label class="block text-sm font-medium text-gray-700">DNS Entry</label>
+                                <input type="text" id="config-dns" name="dns_entry" class="mt-1 block w-full border border-gray-300 rounded-md shadow-sm p-2">
+                            </div>
+                            <div>
+                                <label class="block text-sm font-medium text-gray-700">DHCP Range</label>
+                                <input type="text" id="config-dhcp" name="ap_dhcp_range" class="mt-1 block w-full border border-gray-300 rounded-md shadow-sm p-2">
+                            </div>
+                            <div>
+                                <label class="block text-sm font-medium text-gray-700">Primary ETH IP</label>
+                                <input type="text" id="config-eth" name="primary_eth_ip" class="mt-1 block w-full border border-gray-300 rounded-md shadow-sm p-2">
+                            </div>
+                            <div class="md:col-span-2">
+                                <label class="block text-sm font-medium text-gray-700">Local Hostname</label>
+                                <input type="text" id="config-hostname" name="local_hostname" class="mt-1 block w-full border border-gray-300 rounded-md shadow-sm p-2">
+                            </div>
+                        </div>
+                        <div class="flex items-center space-x-4">
+                            <div class="flex items-center">
+                                <input type="checkbox" id="config-ap" name="is_ap_mode" class="h-4 w-4 text-green-600">
+                                <label for="config-ap" class="ml-2 text-sm font-medium text-gray-700">Enable AP Mode</label>
+                            </div>
+                        </div>
+                        <button type="button" onclick="saveConfig('ap')" class="bg-green-600 text-white px-6 py-2 rounded hover:bg-green-700 transition w-full">Save AP Configuration</button>
+                    </form>
+                </div>
+
+                <!-- Wireless Client Panel -->
+                <div class="card p-6">
+                    <h3 class="text-xl font-bold mb-4 border-b pb-2">Wireless Client Connection</h3>
+                    <form id="client-config-form" class="space-y-4">
+                        <div>
+                            <label class="block text-sm font-medium text-gray-700">WiFi Client SSID</label>
+                            <input type="text" id="config-wifi-client" name="wifi_client_ssid" placeholder="Remote Network SSID" class="mt-1 block w-full border border-gray-300 rounded-md shadow-sm p-2">
+                        </div>
+                        <div>
+                            <label class="block text-sm font-medium text-gray-700">WiFi Client Password</label>
+                            <input type="text" id="config-wifi-client-password" name="wifi_client_password" placeholder="Remote Network Password" class="mt-1 block w-full border border-gray-300 rounded-md shadow-sm p-2">
+                        </div>
+                        <button type="button" onclick="saveConfig('client')" class="bg-green-600 text-white px-6 py-2 rounded hover:bg-green-700 transition w-full">Save Client Configuration</button>
+                    </form>
+                </div>
+            </div>
+        </section>
+    </main>
+
+    <script>
+        function showSection(sectionId) {
+            document.querySelectorAll('.section').forEach(s => s.classList.remove('active'));
+            const target = document.getElementById(sectionId);
+            if (target) {
+                target.classList.add('active');
+                window.scrollTo(0, 0);
+            }
+        }
+
+        let selectedSensor = null;
+        let autoRefreshTimer = null;
+
+        function toggleAutoRefresh() {
+            const enabled = document.getElementById('auto-refresh').checked;
+            if (autoRefreshTimer) {
+                clearInterval(autoRefreshTimer);
+                autoRefreshTimer = null;
+            }
+            if (enabled) {
+                autoRefreshTimer = setInterval(refreshCurrentView, 2000);
+            }
+        }
+
+        function refreshCurrentView() {
+            if (selectedSensor) {
+                loadReadings(selectedSensor);
+            } else {
+                loadSensors();
+            }
+        }
+
+        function hideDetails() {
+            document.getElementById('sensor-list').classList.remove('hidden');
+            document.getElementById('details').classList.add('hidden');
+            selectedSensor = null;
+            if (historyChart) { historyChart.destroy(); historyChart = null; }
+        }
+
+        async function loadSensors() {
+            try {
+                const response = await fetch('/api/sensors/');
+                const data = await response.json();
+                const sensors = data.sensors || [];
+                const container = document.getElementById('sensor-list');
+                container.innerHTML = '';
+                sensors.forEach(sensor => {
+                    const card = document.createElement('div');
+                    card.className = 'card p-6 hover:bg-green-50 cursor-pointer transition';
+                    card.innerHTML = `
+                        <h3 class="text-lg font-bold">${sensor.name || sensor.address}</h3>
+                        <p class="text-sm text-gray-500">${sensor.type}</p>
+                        <p class="mt-2">${sensor.description || ''}</p>
+                        <span class="inline-block mt-2 px-2 py-1 text-xs font-semibold rounded ${sensor.status === 'configured' ? 'bg-green-200 text-green-800' : 'bg-yellow-200 text-yellow-800'}">
+                            ${sensor.status}
+                        </span>
+                    `;
+                    card.onclick = () => showDetails(sensor);
+                    container.appendChild(card);
+                });
+            } catch (e) {
+                console.error("Failed to load sensors", e);
+            }
+        }
+
+        // Maps raw reading keys to a friendly label and unit. Unknown keys fall
+        // back to the key with underscores turned into spaces and no unit.
+        const READING_FORMATS = {
+            temperature_f: { label: 'Temperature', unit: '°F' },
+            humidity_pct:  { label: 'Humidity',    unit: '%' },
+            uva_uw_cm2:    { label: 'UVA',         unit: 'µW/cm²' },
+            uvb_uw_cm2:    { label: 'UVB',         unit: 'µW/cm²' },
+            uvc_uw_cm2:    { label: 'UVC',         unit: 'µW/cm²' },
+            temp_raw:      { label: 'Temperature (raw)', unit: 'counts' },
+            humidity_raw:  { label: 'Humidity (raw)',    unit: 'counts' },
+            uva_raw:       { label: 'UVA (raw)',         unit: 'counts' },
+            uvb_raw:       { label: 'UVB (raw)',         unit: 'counts' },
+            uvc_raw:       { label: 'UVC (raw)',         unit: 'counts' },
+        };
+
+        function formatReading(key, value) {
+            const fmt = READING_FORMATS[key] || { label: key.replace(/_/g, ' '), unit: '' };
+            const unit = fmt.unit ? ` <span class="text-lg font-normal text-gray-500">${fmt.unit}</span>` : '';
+            return { label: fmt.label, value: `${value}${unit}` };
+        }
+
+        async function loadReadings(sensor) {
+            try {
+                const response = await fetch(`/api/sensors/${sensor.id}/readings/`);
+                const data = await response.json();
+                const readings = data.readings || {};
+                const rows = Object.entries(readings).map(([key, value]) => {
+                    const r = formatReading(key, value);
+                    return `
+                    <div class="p-4 bg-blue-50 rounded-lg">
+                        <p class="text-sm text-blue-600">${r.label}</p>
+                        <p class="text-3xl font-bold">${r.value}</p>
+                    </div>
+                `;
+                }).join('');
+                document.getElementById('details-content').innerHTML = `
+                    <div class="grid grid-cols-2 gap-4">${rows}</div>
+                    <p class="mt-4 text-gray-600">Address: ${sensor.address}</p>
+                    <div class="mt-6">
+                        <h3 class="text-lg font-bold mb-2">History</h3>
+                        <div id="history-status" class="text-sm text-gray-500 mb-2"></div>
+                        <canvas id="history-chart" height="120"></canvas>
+                    </div>
+                `;
+                loadHistory(sensor);
+            } catch (e) {
+                document.getElementById('details-content').innerText = "Error loading readings.";
+            }
+        }
+
+        let historyChart = null;
+
+        // Distinct colors assigned to reading series in the order they appear.
+        const SERIES_COLORS = ['#16a34a', '#2563eb', '#dc2626', '#d97706', '#7c3aed', '#0891b2'];
+
+        async function loadHistory(sensor) {
+            const status = document.getElementById('history-status');
+            // Discovered (unsaved) sensors have no stored history yet.
+            if (String(sensor.id).startsWith('discovered_')) {
+                if (status) status.innerText = 'Save this sensor to start recording history.';
+                return;
+            }
+            try {
+                const response = await fetch(`/api/sensors/${sensor.id}/history/?limit=500`);
+                const data = await response.json();
+                // API returns newest-first; charts read left-to-right oldest-first.
+                const readings = (data.readings || []).slice().reverse();
+                const canvas = document.getElementById('history-chart');
+                if (!canvas) return;
+
+                // loadReadings() rebuilds details-content (and the canvas) on every
+                // auto-refresh, so any prior chart is bound to a stale node — drop it.
+                if (historyChart) { historyChart.destroy(); historyChart = null; }
+
+                if (readings.length === 0) {
+                    if (status) status.innerText = 'No stored data points yet.';
+                    return;
+                }
+                if (status) status.innerText = `${readings.length} data point(s).`;
+
+                const labels = readings.map(r => new Date(r.timestamp).toLocaleString());
+                // One line per numeric value key present across the readings.
+                const keys = [...new Set(readings.flatMap(r => Object.keys(r.values)))];
+                const datasets = keys.map((key, i) => {
+                    const fmt = READING_FORMATS[key] || { label: key.replace(/_/g, ' ') };
+                    const color = SERIES_COLORS[i % SERIES_COLORS.length];
+                    return {
+                        label: fmt.unit ? `${fmt.label} (${fmt.unit})` : fmt.label,
+                        data: readings.map(r => (key in r.values ? r.values[key] : null)),
+                        borderColor: color,
+                        backgroundColor: color,
+                        spanGaps: true,
+                        tension: 0.2,
+                    };
+                });
+
+                historyChart = new Chart(canvas, {
+                    type: 'line',
+                    data: { labels, datasets },
+                    options: {
+                        responsive: true,
+                        interaction: { mode: 'index', intersect: false },
+                        scales: { x: { ticks: { maxTicksLimit: 8 } } },
+                    },
+                });
+            } catch (e) {
+                if (status) status.innerText = 'Error loading history.';
+            }
+        }
+
+        function showDetails(sensor) {
+            selectedSensor = sensor;
+            document.getElementById('sensor-list').classList.add('hidden');
+            document.getElementById('details').classList.remove('hidden');
+            document.getElementById('details-title').innerText = sensor.name || sensor.address;
+            loadReadings(sensor);
+        }
+
+        async function loadNetworkConfig() {
+            try {
+                const response = await fetch('/api/network/');
+                const data = await response.json();
+                
+                document.getElementById('config-ssid').value = data.ssid;
+                document.getElementById('config-dns').value = data.dns_entry;
+                document.getElementById('config-dhcp').value = data.ap_dhcp_range;
+                document.getElementById('config-eth').value = data.primary_eth_ip;
+                document.getElementById('config-wifi-client').value = data.wifi_client_ssid;
+                document.getElementById('config-wifi-client-password').value = data.wifi_client_password;
+                document.getElementById('config-hostname').value = data.local_hostname;
+                document.getElementById('config-ap').checked = data.is_ap_mode;
+            } catch (e) {
+                console.error("Failed to load network config", e);
+            }
+        }
+
+        async function saveConfig(type) {
+            let data = {};
+            if (type === 'ap') {
+                data = {
+                    ssid: document.getElementById('config-ssid').value,
+                    dns_entry: document.getElementById('config-dns').value,
+                    ap_dhcp_range: document.getElementById('config-dhcp').value,
+                    primary_eth_ip: document.getElementById('config-eth').value,
+                    local_hostname: document.getElementById('config-hostname').value,
+                    is_ap_mode: document.getElementById('config-ap').checked
+                };
+            } else {
+                data = {
+                    wifi_client_ssid: document.getElementById('config-wifi-client').value,
+                    wifi_client_password: document.getElementById('config-wifi-client-password').value
+                };
+            }
+            
+            try {
+                const response = await fetch('/api/network/', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json'
+                    },
+                    body: JSON.stringify(data)
+                });
+                if (response.ok) {
+                    alert("Configuration saved successfully!");
+                    loadNetworkConfig();
+                } else {
+                    alert("Failed to save configuration.");
+                }
+            } catch (e) {
+                console.error("Error saving configuration", e);
+            }
+        }
+
+        loadSensors();
+        loadNetworkConfig();
+    </script>
+</body>
+</html>

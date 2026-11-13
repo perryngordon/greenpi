@@ -1,0 +1,11 @@
+# Python / Django
+venv/
+__pycache__/
+*.pyc
+db.sqlite3
+
+# Vendored RTL8188EU driver (separate upstream git repo)
+rtl8188eu/
+
+# Personal Claude Code settings
+.claude/settings.local.json
