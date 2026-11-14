@@ -163,6 +163,9 @@ def climate(request):
 
     out = []
     for sensor in Sensor.objects.filter(status="configured").order_by("id"):
+        # e.g. the AS7331 reports its die temperature, which isn't air climate.
+        if (sensor.metadata or {}).get("climate") is False:
+            continue
         rows = list(
             sensor.readings.filter(timestamp__gte=since)
             .order_by("timestamp")

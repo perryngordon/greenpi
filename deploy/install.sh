@@ -56,6 +56,10 @@ for addr, name, desc, every in seed:
         name=name, description=desc, sensor_type='i2c', status='configured',
         sample_interval_seconds=every))
     if new: print('configured sensor', addr, name)
+# The AS7331's temperature is its die temperature: keep it off the climate view.
+uv = Sensor.objects.filter(address='0x74').first()
+if uv and (uv.metadata or {}).get('climate') is not False:
+    uv.metadata = {**(uv.metadata or {}), 'climate': False}; uv.save(); print('UV sensor excluded from climate view')
 "
 
 echo "== hotspot config (from DB; first run takes the password from $ENV)"

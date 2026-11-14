@@ -43,6 +43,7 @@ def _ap_ip(config):
 def _write_root_file(path, text, mode="644"):
     # The web app runs unprivileged; write via sudo tee (see deploy/sudoers).
     subprocess.run(["sudo", "tee", path], input=text.encode(), stdout=subprocess.DEVNULL, check=True)
+    subprocess.run(["sudo", "chown", "root:root", path], check=True)
     subprocess.run(["sudo", "chmod", mode, path], check=True)
 
 
