@@ -1,5 +1,7 @@
-from django.shortcuts import render
+from datetime import datetime, timedelta
+
 from django.http import JsonResponse
+from django.utils import timezone
 import json
 from .models import Sensor, SensorReading
 from .services import SensorDiscoveryService, read_calibrated, DRIVERS
@@ -56,6 +58,8 @@ def mock_sensor_list(request):
     return JsonResponse({"sensors": get_sensor_list(request)})
 
 def configure_sensor(request):
+    if not (request.user.is_authenticated and request.user.is_staff):
+        return JsonResponse({"status": "error", "message": "Log in at /admin/ to configure sensors."}, status=403)
     if request.method == "POST":
         data = json.loads(request.body)
         sensor_id = data.get("id")
@@ -128,4 +132,95 @@ def get_sensor_history(request, sensor_id):
         ],
     })
 
-# Create your views here.
+
+# Values the climate dashboard charts and summarises, in display order.
+CLIMATE_KEYS = ("temperature_f", "humidity_pct")
+MAX_CHART_POINTS = 400
+
+
+def climate(request):
+    """
+    Climate dashboard data for every configured sensor that reports
+    temperature and/or humidity:
+      * latest  - most recent stored values
+      * series  - bucket-averaged values over the last `hours` (<= ~400 points)
+      * daily   - per local day min/max/avg over the last `days`
+    """
+    try:
+        hours = max(1, min(int(request.GET.get("hours", 24)), 24 * 366))
+        days = max(1, min(int(request.GET.get("days", 14)), 366))
+    except ValueError:
+        return JsonResponse({"error": "hours and days must be integers"}, status=400)
+
+    now = timezone.now()
+    series_start = now - timedelta(hours=hours)
+    local_today = timezone.localdate(now)
+    daily_start = timezone.make_aware(
+        datetime.combine(local_today - timedelta(days=days - 1), datetime.min.time())
+    )
+    since = min(series_start, daily_start)
+    bucket_s = max(60, int(hours * 3600 / MAX_CHART_POINTS))
+
+    out = []
+    for sensor in Sensor.objects.filter(status="configured").order_by("id"):
+        rows = list(
+            sensor.readings.filter(timestamp__gte=since)
+            .order_by("timestamp")
+            .values_list("timestamp", "values")
+        )
+        keys = [k for k in CLIMATE_KEYS if any(k in v for _, v in rows)]
+        latest = sensor.readings.order_by("-timestamp").first()
+        if not keys and not (latest and any(k in latest.values for k in CLIMATE_KEYS)):
+            continue
+
+        # Bucketed chart series.
+        buckets = {}
+        for ts, vals in rows:
+            if ts < series_start:
+                continue
+            b = int(ts.timestamp()) // bucket_s
+            acc = buckets.setdefault(b, {})
+            for k in keys:
+                if isinstance(vals.get(k), (int, float)):
+                    acc.setdefault(k, []).append(vals[k])
+        series = [
+            {"t": (b * bucket_s + bucket_s // 2) * 1000,
+             **{k: round(sum(v) / len(v), 2) for k, v in acc.items()}}
+            for b, acc in sorted(buckets.items())
+        ]
+
+        # Daily min / max / avg by local calendar day.
+        per_day = {}
+        for ts, vals in rows:
+            if ts < daily_start:
+                continue
+            d = timezone.localtime(ts).date().isoformat()
+            for k in keys:
+                if isinstance(vals.get(k), (int, float)):
+                    per_day.setdefault(d, {}).setdefault(k, []).append(vals[k])
+        daily = [
+            {"date": d, **{
+                k: {"min": round(min(v), 1), "max": round(max(v), 1),
+                    "avg": round(sum(v) / len(v), 1), "n": len(v)}
+                for k, v in ks.items()}}
+            for d, ks in sorted(per_day.items(), reverse=True)
+        ]
+
+        out.append({
+            "id": sensor.id,
+            "name": sensor.name or sensor.address,
+            "description": sensor.description or "",
+            "keys": keys,
+            "latest": ({"timestamp": latest.timestamp.isoformat(), "values": latest.values}
+                       if latest else None),
+            "series": series,
+            "daily": daily,
+        })
+
+    return JsonResponse({
+        "now": now.isoformat(),
+        "timezone": timezone.get_current_timezone_name(),
+        "hours": hours,
+        "bucket_seconds": bucket_s,
+        "sensors": out,
+    })

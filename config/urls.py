@@ -16,12 +16,14 @@ Including another URLconf
 """
 from django.contrib import admin
 from django.urls import path
-from config.views import home
-from sensors.views import get_sensor_list, configure_sensor, mock_sensor_readings, get_sensor_history
+from config.views import home, me
+from sensors.views import get_sensor_list, configure_sensor, mock_sensor_readings, get_sensor_history, climate
 from network.views import network_config
 
 urlpatterns = [
     path('', home),
+    path('api/climate/', climate),
+    path('api/me/', me),
     path('admin/', admin.site.urls),
     path('api/sensors/', get_sensor_list),
     path('api/sensors/configure/', configure_sensor),

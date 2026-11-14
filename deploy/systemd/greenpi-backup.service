@@ -1,0 +1,11 @@
+[Unit]
+Description=GreenPi nightly database snapshot to the data drive
+RequiresMountsFor=/srv/greenpi-data
+
+[Service]
+Type=oneshot
+User=admin
+Group=admin
+WorkingDirectory=/home/admin/greenpi
+EnvironmentFile=/etc/greenpi/greenpi.env
+ExecStart=/home/admin/greenpi/venv/bin/python manage.py backup_db --keep 30

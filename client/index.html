@@ -4,8 +4,9 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Greenhouse Dashboard</title>
-    <script src="https://cdn.tailwindcss.com"></script>
-    <script src="https://cdn.jsdelivr.net/npm/chart.js@4"></script>
+    <!-- Served locally so the page works on the hotspot with no internet. -->
+    <script src="/static/vendor/tailwind-3.4.16.js"></script>
+    <script src="/static/vendor/chart-4.4.7.umd.min.js"></script>
     <style>
         body { background-color: #f0fdf4; scroll-behavior: smooth; }
         .card { background: white; border-radius: 1rem; box-shadow: 0 4px 6px -1px rgb(0 0 0 / 0.1); }
@@ -18,8 +19,8 @@
 <body class="font-sans text-gray-900">
     <nav class="bg-green-600 p-4 text-white flex justify-between items-center shadow-lg sticky top-0 z-50">
         <h1 class="text-2xl font-bold cursor-pointer" onclick="showSection('home')">🌿 Greenhouse</h1>
-        <div class="space-x-4">
-            <a href="javascript:void(0)" onclick="showSection('home')" class="nav-link px-3 py-1">Home</a>
+        <div class="flex flex-wrap gap-1">
+            <a href="javascript:void(0)" onclick="showSection('home')" class="nav-link px-3 py-1">Climate</a>
             <a href="javascript:void(0)" onclick="showSection('sensors')" class="nav-link px-3 py-1">Sensors</a>
             <a href="javascript:void(0)" onclick="showSection('wiki')" class="nav-link px-3 py-1">Wiki</a>
             <a href="javascript:void(0)" onclick="showSection('config')" class="nav-link px-3 py-1">Config</a>
@@ -29,19 +30,36 @@
     <main class="container mx-auto p-6">
         <!-- Home Section -->
         <section id="home" class="section active">
-            <header class="mb-8 text-center">
-                <h2 class="text-5xl font-bold text-green-800 mb-4">Welcome to your Greenhouse</h2>
-                <p class="text-xl text-gray-600">Your automated growing space is active and monitoring.</p>
+            <header class="mb-6 flex items-end justify-between flex-wrap gap-4">
+                <div>
+                    <h2 class="text-3xl font-semibold text-green-800">Greenhouse climate</h2>
+                    <p id="climate-updated" class="text-gray-500 text-sm">Loading…</p>
+                </div>
+                <div id="range-buttons" class="flex gap-1 bg-white rounded-lg p-1 shadow">
+                    <button data-hours="24"  class="range-btn px-3 py-1 rounded">24 h</button>
+                    <button data-hours="168" class="range-btn px-3 py-1 rounded">7 days</button>
+                    <button data-hours="720" class="range-btn px-3 py-1 rounded">30 days</button>
+                    <button data-hours="2160" class="range-btn px-3 py-1 rounded">Season</button>
+                </div>
             </header>
-            <div class="grid grid-cols-1 md:grid-cols-2 gap-8">
-                <div class="card p-8">
-                    <h3 class="text-2xl font-bold mb-4">Quick Stats</h3>
-                    <p class="text-gray-600">All systems nominal. Sensors are reporting steady data.</p>
-                </div>
-                <div class="card p-8">
-                    <h3 class="text-2xl font-bold mb-4">System Status</h3>
-                    <p class="text-green-600 font-bold">Online & Connected</p>
-                </div>
+
+            <div id="climate-now" class="grid grid-cols-2 md:grid-cols-4 gap-4 mb-6"></div>
+
+            <div class="card p-4 md:p-6 mb-6">
+                <h3 class="text-lg font-bold mb-2">Temperature &amp; humidity</h3>
+                <div class="relative" style="height: 320px;"><canvas id="climate-chart"></canvas></div>
+                <p id="climate-empty" class="hidden text-gray-500 text-sm mt-2">No readings stored yet; the sampler stores one per minute.</p>
+            </div>
+
+            <div class="card p-4 md:p-6">
+                <h3 class="text-lg font-bold mb-2">Daily highs &amp; lows</h3>
+                <div class="overflow-x-auto"><table class="w-full text-sm">
+                    <thead><tr class="text-left text-gray-500 border-b">
+                        <th class="py-2 pr-4">Day</th><th class="pr-4">Low °F</th><th class="pr-4">High °F</th>
+                        <th class="pr-4">Swing °F</th><th class="pr-4">Avg RH %</th><th>Readings</th>
+                    </tr></thead>
+                    <tbody id="climate-daily"></tbody>
+                </table></div>
             </div>
         </section>
 
@@ -84,7 +102,11 @@
                 <h2 class="text-3xl font-semibold text-green-800">Configuration</h2>
                 <p class="text-gray-600">Manage network and hardware settings.</p>
             </header>
-            <div class="grid grid-cols-1 lg:grid-cols-2 gap-8">
+            <div id="config-login" class="hidden card p-6 mb-6 border-2 border-yellow-200">
+                <p class="text-gray-700">Network settings are admin-only.
+                    <a href="/admin/login/?next=/" class="text-green-700 font-semibold underline">Log in</a>, then come back to this page.</p>
+            </div>
+            <div id="config-panels" class="grid grid-cols-1 lg:grid-cols-2 gap-8">
                 <!-- AP Mode Panel -->
                 <div class="card p-6">
                     <h3 class="text-xl font-bold mb-4 border-b pb-2">AP Mode Configuration</h3>
@@ -93,6 +115,10 @@
                             <div>
                                 <label class="block text-sm font-medium text-gray-700">SSID</label>
                                 <input type="text" id="config-ssid" name="ssid" class="mt-1 block w-full border border-gray-300 rounded-md shadow-sm p-2">
+                            </div>
+                            <div>
+                                <label class="block text-sm font-medium text-gray-700">Hotspot password</label>
+                                <input type="password" id="config-ap-password" name="wifi_password" placeholder="(unchanged)" autocomplete="new-password" class="mt-1 block w-full border border-gray-300 rounded-md shadow-sm p-2">
                             </div>
                             <div>
                                 <label class="block text-sm font-medium text-gray-700">DNS Entry</label>
@@ -131,7 +157,7 @@
                         </div>
                         <div>
                             <label class="block text-sm font-medium text-gray-700">WiFi Client Password</label>
-                            <input type="text" id="config-wifi-client-password" name="wifi_client_password" placeholder="Remote Network Password" class="mt-1 block w-full border border-gray-300 rounded-md shadow-sm p-2">
+                            <input type="password" id="config-wifi-client-password" name="wifi_client_password" placeholder="Remote Network Password" autocomplete="new-password" class="mt-1 block w-full border border-gray-300 rounded-md shadow-sm p-2">
                         </div>
                         <button type="button" onclick="saveConfig('client')" class="bg-green-600 text-white px-6 py-2 rounded hover:bg-green-700 transition w-full">Save Client Configuration</button>
                     </form>
@@ -323,17 +349,153 @@
             loadReadings(sensor);
         }
 
+        // ---------------------------------------------------------------
+        // Climate dashboard
+        // ---------------------------------------------------------------
+        let climateHours = 24;
+        let climateChart = null;
+        const TEMP_COLORS = ['#dc2626', '#ea580c', '#b91c1c', '#f59e0b'];
+        const RH_COLORS = ['#2563eb', '#0891b2', '#4f46e5', '#0284c7'];
+
+        function fmtAgo(iso) {
+            const s = Math.round((Date.now() - new Date(iso)) / 1000);
+            if (s < 90) return `${s}s ago`;
+            if (s < 5400) return `${Math.round(s / 60)} min ago`;
+            return new Date(iso).toLocaleString();
+        }
+
+        function tile(label, value, unit, sub) {
+            return `<div class="card p-4">
+                <p class="text-sm text-gray-500">${label}</p>
+                <p class="text-3xl font-bold">${value}<span class="text-lg font-normal text-gray-500"> ${unit}</span></p>
+                <p class="text-xs text-gray-400">${sub || ''}</p></div>`;
+        }
+
+        async function loadClimate() {
+            document.querySelectorAll('.range-btn').forEach(b => {
+                const on = Number(b.dataset.hours) === climateHours;
+                b.classList.toggle('bg-green-600', on);
+                b.classList.toggle('text-white', on);
+            });
+            let data;
+            try {
+                const r = await fetch(`/api/climate/?hours=${climateHours}&days=14`);
+                data = await r.json();
+            } catch (e) {
+                document.getElementById('climate-updated').innerText = 'Could not reach the greenhouse controller.';
+                return;
+            }
+            const sensors = data.sensors || [];
+
+            // Current values + today's range for each sensor.
+            const tiles = [];
+            sensors.forEach(s => {
+                const v = (s.latest && s.latest.values) || {};
+                const today = s.daily[0] || {};
+                if ('temperature_f' in v) {
+                    const t = today.temperature_f;
+                    tiles.push(tile(`${s.name} – temp`, v.temperature_f.toFixed(1), '°F',
+                        t ? `today ${t.min}–${t.max} °F` : ''));
+                }
+                if ('humidity_pct' in v) {
+                    const h = today.humidity_pct;
+                    tiles.push(tile(`${s.name} – humidity`, v.humidity_pct.toFixed(0), '%',
+                        h ? `today ${h.min.toFixed(0)}–${h.max.toFixed(0)} %` : ''));
+                }
+            });
+            document.getElementById('climate-now').innerHTML = tiles.join('');
+            const newest = sensors.map(s => s.latest && s.latest.timestamp).filter(Boolean).sort().pop();
+            document.getElementById('climate-updated').innerText =
+                newest ? `Last reading ${fmtAgo(newest)} · times in ${data.timezone}` : 'No readings yet.';
+
+            // Chart: temperature on the left axis, humidity on the right.
+            const datasets = [];
+            sensors.forEach((s, i) => {
+                if (s.keys.includes('temperature_f')) datasets.push({
+                    label: `${s.name} °F`, yAxisID: 'temp',
+                    data: s.series.filter(p => 'temperature_f' in p).map(p => ({ x: p.t, y: p.temperature_f })),
+                    borderColor: TEMP_COLORS[i % TEMP_COLORS.length], backgroundColor: TEMP_COLORS[i % TEMP_COLORS.length],
+                    borderWidth: 2, pointRadius: 0, tension: 0.2 });
+                if (s.keys.includes('humidity_pct')) datasets.push({
+                    label: `${s.name} RH %`, yAxisID: 'rh',
+                    data: s.series.filter(p => 'humidity_pct' in p).map(p => ({ x: p.t, y: p.humidity_pct })),
+                    borderColor: RH_COLORS[i % RH_COLORS.length], backgroundColor: RH_COLORS[i % RH_COLORS.length],
+                    borderWidth: 1.5, borderDash: [4, 3], pointRadius: 0, tension: 0.2 });
+            });
+            const empty = datasets.every(d => d.data.length === 0);
+            document.getElementById('climate-empty').classList.toggle('hidden', !empty);
+
+            const multiDay = climateHours > 48;
+            const tickFmt = ms => {
+                const d = new Date(ms);
+                return multiDay ? d.toLocaleDateString(undefined, { month: 'short', day: 'numeric' })
+                                : d.toLocaleTimeString(undefined, { hour: 'numeric', minute: '2-digit' });
+            };
+            if (climateChart) climateChart.destroy();
+            climateChart = new Chart(document.getElementById('climate-chart'), {
+                type: 'line',
+                data: { datasets },
+                options: {
+                    responsive: true, maintainAspectRatio: false, animation: false,
+                    interaction: { mode: 'nearest', axis: 'x', intersect: false },
+                    plugins: { tooltip: { callbacks: { title: items => new Date(items[0].parsed.x).toLocaleString() } } },
+                    scales: {
+                        x: { type: 'linear', min: Date.now() - climateHours * 3600e3, max: Date.now(),
+                             ticks: { maxTicksLimit: 8, callback: tickFmt } },
+                        temp: { position: 'left', title: { display: true, text: '°F' } },
+                        rh: { position: 'right', min: 0, max: 100, grid: { drawOnChartArea: false },
+                              title: { display: true, text: 'RH %' } },
+                    },
+                },
+            });
+
+            // Daily highs & lows (first sensor that reports temperature).
+            const main = sensors.find(s => s.keys.includes('temperature_f'));
+            document.getElementById('climate-daily').innerHTML = (main ? main.daily : []).map(d => {
+                const t = d.temperature_f, h = d.humidity_pct;
+                const day = new Date(d.date + 'T12:00:00').toLocaleDateString(undefined, { weekday: 'short', month: 'short', day: 'numeric' });
+                return `<tr class="border-b last:border-0">
+                    <td class="py-2 pr-4">${day}</td>
+                    <td class="pr-4 text-blue-700 font-semibold">${t ? t.min : '–'}</td>
+                    <td class="pr-4 text-red-700 font-semibold">${t ? t.max : '–'}</td>
+                    <td class="pr-4">${t ? (t.max - t.min).toFixed(1) : '–'}</td>
+                    <td class="pr-4">${h ? h.avg.toFixed(0) : '–'}</td>
+                    <td class="text-gray-500">${t ? t.n : (h ? h.n : 0)}</td></tr>`;
+            }).join('') || '<tr><td colspan="6" class="py-2 text-gray-500">No data yet.</td></tr>';
+        }
+
+        document.querySelectorAll('.range-btn').forEach(b => b.addEventListener('click', () => {
+            climateHours = Number(b.dataset.hours);
+            loadClimate();
+        }));
+        setInterval(() => {
+            if (document.getElementById('home').classList.contains('active')) loadClimate();
+        }, 60000);
+
+        // ---------------------------------------------------------------
+        // Network configuration (admin only)
+        // ---------------------------------------------------------------
+        function csrfToken() {
+            const m = document.cookie.match(/(?:^|;\s*)csrftoken=([^;]+)/);
+            return m ? decodeURIComponent(m[1]) : '';
+        }
+
         async function loadNetworkConfig() {
             try {
                 const response = await fetch('/api/network/');
+                const loggedIn = response.status !== 403;
+                document.getElementById('config-login').classList.toggle('hidden', loggedIn);
+                document.getElementById('config-panels').classList.toggle('hidden', !loggedIn);
+                if (!loggedIn) return;
                 const data = await response.json();
-                
+
                 document.getElementById('config-ssid').value = data.ssid;
                 document.getElementById('config-dns').value = data.dns_entry;
                 document.getElementById('config-dhcp').value = data.ap_dhcp_range;
                 document.getElementById('config-eth').value = data.primary_eth_ip;
                 document.getElementById('config-wifi-client').value = data.wifi_client_ssid;
-                document.getElementById('config-wifi-client-password').value = data.wifi_client_password;
+                document.getElementById('config-wifi-client-password').placeholder =
+                    data.wifi_client_password_set ? '(saved – leave blank to keep)' : 'Remote Network Password';
                 document.getElementById('config-hostname').value = data.local_hostname;
                 document.getElementById('config-ap').checked = data.is_ap_mode;
             } catch (e) {
@@ -346,6 +508,7 @@
             if (type === 'ap') {
                 data = {
                     ssid: document.getElementById('config-ssid').value,
+                    wifi_password: document.getElementById('config-ap-password').value,
                     dns_entry: document.getElementById('config-dns').value,
                     ap_dhcp_range: document.getElementById('config-dhcp').value,
                     primary_eth_ip: document.getElementById('config-eth').value,
@@ -363,21 +526,27 @@
                 const response = await fetch('/api/network/', {
                     method: 'POST',
                     headers: {
-                        'Content-Type': 'application/json'
+                        'Content-Type': 'application/json',
+                        'X-CSRFToken': csrfToken(),
                     },
                     body: JSON.stringify(data)
                 });
                 if (response.ok) {
                     alert("Configuration saved successfully!");
+                    document.getElementById('config-ap-password').value = '';
+                    document.getElementById('config-wifi-client-password').value = '';
                     loadNetworkConfig();
                 } else {
-                    alert("Failed to save configuration.");
+                    let msg = '';
+                    try { msg = (await response.json()).message || ''; } catch (e) {}
+                    alert("Failed to save configuration. " + msg);
                 }
             } catch (e) {
                 console.error("Error saving configuration", e);
             }
         }
 
+        loadClimate();
         loadSensors();
         loadNetworkConfig();
     </script>

@@ -1,0 +1,69 @@
+#!/usr/bin/env bash
+# Idempotent installer for the greenhouse Pi. Run as `admin` from the repo:
+#   cd ~/greenpi && deploy/install.sh
+# Needs /etc/greenpi/greenpi.env (secrets; never committed) - see deploy/README.md.
+set -euo pipefail
+cd "$(dirname "$0")/.."
+REPO=$(pwd)
+ENV=/etc/greenpi/greenpi.env
+sudo test -f "$ENV" || { echo "missing $ENV"; exit 1; }
+set -a; eval "$(sudo cat "$ENV")"; set +a
+
+echo "== python deps"
+venv/bin/pip install -q -r requirements.txt
+
+echo "== wifi interface names (persist via .link files, applied live now)"
+sudo install -m 644 deploy/network/*.link /etc/systemd/network/
+sudo install -m 644 deploy/network/90-greenpi.conf /etc/NetworkManager/conf.d/
+rename_by_mac() {  # mac newname
+  local cur; cur=$(ip -o link | awk -v m="$1" '$0 ~ m {sub(":","",$2); print $2}')
+  if [ -n "$cur" ] && [ "$cur" != "$2" ]; then
+    sudo systemctl stop hostapd || true
+    sudo ip link set dev "$cur" down
+    sudo ip link set dev "$cur" name "$2"
+    sudo ip link set dev "$2" up
+    echo "renamed $cur -> $2"
+  fi
+}
+rename_by_mac 60:38:e0:09:cc:9c wlap0
+rename_by_mac e0:e1:a9:93:c8:e1 wlsta0
+sudo systemctl reload NetworkManager
+
+echo "== systemd units"
+sudo install -m 644 deploy/systemd/*.service deploy/systemd/*.timer /etc/systemd/system/
+sudo install -d /etc/systemd/system/hostapd.service.d
+sudo install -m 644 deploy/systemd/hostapd.service.d/greenpi.conf /etc/systemd/system/hostapd.service.d/
+sudo rm -f /etc/dnsmasq.d/django-dhcp.conf   # replaced by greenpi-ap.conf
+sudo systemctl daemon-reload
+sudo systemctl unmask hostapd 2>/dev/null || true
+sudo systemctl enable -q hostapd dnsmasq greenpi-ap-ip.service
+sudo systemctl restart greenpi-ap-ip.service
+
+echo "== database, static files, admin user, sensors"
+M="venv/bin/python manage.py"
+$M migrate --noinput
+$M collectstatic --noinput -v 0
+DJANGO_SUPERUSER_PASSWORD="$GREENPI_ADMIN_PASSWORD" $M shell -c "
+from django.contrib.auth import get_user_model
+U = get_user_model()
+if not U.objects.filter(username='admin').exists():
+    U.objects.create_superuser('admin', '', '$GREENPI_ADMIN_PASSWORD'); print('created web admin user')
+from sensors.models import Sensor
+seed = [('0x70', 'Air temp & humidity (SHTC3)', 'SparkFun SHTC3', 60),
+        ('0x74', 'UV light (AS7331)', 'SparkFun AS7331', 300)]
+for addr, name, desc, every in seed:
+    s, new = Sensor.objects.get_or_create(address=addr, defaults=dict(
+        name=name, description=desc, sensor_type='i2c', status='configured',
+        sample_interval_seconds=every))
+    if new: print('configured sensor', addr, name)
+"
+
+echo "== hotspot config (from DB; first run takes the password from $ENV)"
+$M apply_network --from-env
+
+echo "== app services"
+sudo systemctl enable -q --now greenpi-web greenpi-sampler greenpi-backup.timer
+sudo systemctl restart greenpi-web greenpi-sampler
+sleep 3
+systemctl is-active hostapd dnsmasq greenpi-ap-ip greenpi-web greenpi-sampler | paste -sd' '
+echo "done: http://$(hostname -I | awk '{print $1}')/  hotspot: 10.42.0.1"
