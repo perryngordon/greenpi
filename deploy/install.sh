@@ -65,6 +65,16 @@ if uv and (uv.metadata or {}).get('climate') is not False:
 echo "== hotspot config (from DB; first run takes the password from $ENV)"
 $M apply_network --from-env
 
+echo "== VPN (wg-hub) watchdog, only if the tunnel is configured on this device"
+if sudo test -f /etc/wireguard/wg0.conf; then
+  sudo install -m 755 deploy/vpn/greenpi-vpn-watchdog.sh /usr/local/sbin/greenpi-vpn-watchdog
+  sudo install -m 644 deploy/vpn/greenpi-vpn-watchdog.service deploy/vpn/greenpi-vpn-watchdog.timer /etc/systemd/system/
+  sudo systemctl daemon-reload
+  sudo systemctl enable -q --now wg-quick@wg0 greenpi-vpn-watchdog.timer
+else
+  echo "no /etc/wireguard/wg0.conf - skipping (see deploy/README.md)"
+fi
+
 echo "== app services"
 sudo systemctl enable -q --now greenpi-web greenpi-sampler greenpi-backup.timer
 sudo systemctl restart greenpi-web greenpi-sampler

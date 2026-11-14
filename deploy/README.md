@@ -38,5 +38,18 @@ GREENPI_STA_INTERFACE=wlsta0
 
 Names are pinned by MAC in `deploy/network/*.link`; update the MACs there if a dongle is swapped.
 
+## Remote access (VPN)
+
+The Pi is a WireGuard peer on wg-hub (`108.61.151.131:51820`) at **10.8.0.21**, so it can be
+reached from anywhere on the VPN regardless of its uplink (home Ethernet, neighbour Wi-Fi, LTE):
+`ssh admin@10.8.0.21`, `http://10.8.0.21/`.
+
+- `/etc/wireguard/wg0.conf` + `greenpi.key` live only on the device (never committed).
+  `AllowedIPs = 10.8.0.0/24` (only VPN traffic uses the tunnel), `PersistentKeepalive = 25`.
+- `greenpi-vpn-watchdog.timer` (every 2 min) restarts `wg-quick@wg0` if there has been no
+  handshake for 3 min and the hub doesn't answer ping.
+- Hub side: infra peer (free access from other infra peers); owner devices
+  (10.8.0.100-119) may reach it on 22/80 (wg-hub `/etc/nftables.conf`).
+
 Hotspot users browse to `http://10.42.0.1/` (or `http://greenhouse/`). Network settings
 in the Config tab need the web admin login (`/admin/`).
