@@ -12,10 +12,12 @@ staff user (log in at /admin/) and normal CSRF protection.
 """
 import ipaddress
 import json
+import re
 import subprocess
 
 from django.conf import settings
 from django.http import JsonResponse
+from django.utils import timezone
 
 from .models import NetworkConfig
 
@@ -120,6 +122,81 @@ def _get_config():
             is_ap_mode=True,
         )
     return config
+
+
+def _nmcli_fields(line):
+    """Split one `nmcli -t` line on unescaped ':' and unescape the values."""
+    return [p.replace("\\:", ":").replace("\\\\", "\\") for p in re.split(r"(?<!\\):", line)]
+
+
+def _pct_to_dbm(pct):
+    # Inverse of NetworkManager's quality mapping (-100 dBm = 0 %, -40 dBm = 100 %).
+    return round(-100 + 0.6 * pct)
+
+
+def _rate(dbm):
+    if dbm >= -67:
+        return "good", "Good: the Comfast on its own should be fine."
+    if dbm >= -75:
+        return "ok", "Usable, but may drop at times. A better antenna helps."
+    if dbm >= -85:
+        return "weak", "Weak: needs a high-gain or directional antenna aimed at it."
+    return "poor", "Too weak: use an outdoor Wi-Fi bridge (e.g. TP-Link CPE210)."
+
+
+def wifi_survey(request):
+    """Scan with the client radio and report every network it can hear."""
+    denied = _staff_required(request)
+    if denied:
+        return denied
+    iface = settings.GREENPI_STA_INTERFACE
+    cmd = ["sudo", "nmcli", "-t", "-f", "IN-USE,SSID,BSSID,CHAN,FREQ,SIGNAL,SECURITY",
+           "device", "wifi", "list", "ifname", iface, "--rescan", "yes"]
+    try:
+        r = subprocess.run(cmd, capture_output=True, text=True, timeout=45)
+    except subprocess.TimeoutExpired:
+        return JsonResponse({"status": "error", "message": "Scan timed out."}, status=500)
+    if r.returncode != 0:
+        return JsonResponse({"status": "error", "message": r.stderr.strip() or "Scan failed."}, status=500)
+
+    networks = []
+    for line in r.stdout.splitlines():
+        f = _nmcli_fields(line)
+        if len(f) < 7:
+            continue
+        in_use, ssid, bssid, chan, freq, sig, sec = f[:7]
+        try:
+            pct = int(sig)
+        except ValueError:
+            continue
+        dbm = _pct_to_dbm(pct)
+        level, advice = _rate(dbm)
+        networks.append({
+            "ssid": ssid or "(hidden network)",
+            "hidden": not ssid,
+            "bssid": bssid,
+            "channel": chan,
+            "band": "5 GHz" if freq.strip().startswith("5") else "2.4 GHz",
+            "signal_pct": pct,
+            "dbm_approx": dbm,
+            "level": level,
+            "advice": advice,
+            "security": sec or "open",
+            "connected": in_use.strip() == "*",
+        })
+    networks.sort(key=lambda n: -n["signal_pct"])
+    result = {"interface": iface, "scanned_at": timezone.now().isoformat(), "networks": networks}
+
+    # Keep a record on the data drive so on-site scans can be reviewed later.
+    survey_dir = settings.DATA_DIR / "surveys"
+    try:
+        if survey_dir.parent.exists():
+            survey_dir.mkdir(exist_ok=True)
+            name = f"survey-{timezone.localtime():%Y%m%d-%H%M%S}.json"
+            (survey_dir / name).write_text(json.dumps(result, indent=1))
+    except OSError:
+        pass
+    return JsonResponse(result)
 
 
 def network_config(request):

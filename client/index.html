@@ -169,6 +169,27 @@
                         <button type="button" onclick="saveConfig('client')" class="bg-green-600 text-white px-6 py-2 rounded hover:bg-green-700 transition w-full">Save Client Configuration</button>
                     </form>
                 </div>
+
+                <!-- Wi-Fi survey: what the client radio can hear from where the box is mounted -->
+                <div class="card p-6 lg:col-span-2">
+                    <div class="flex items-center justify-between flex-wrap gap-3 border-b pb-2 mb-4">
+                        <h3 class="text-xl font-bold">Wi-Fi survey</h3>
+                        <button id="survey-btn" type="button" onclick="runSurvey()" class="bg-green-600 text-white px-5 py-2 rounded hover:bg-green-700 transition disabled:opacity-50">Scan now</button>
+                    </div>
+                    <p class="text-sm text-gray-600 mb-3">Lists every network the greenhouse's Wi-Fi client radio can hear from where the box is mounted, strongest first. Tap <b>Use</b> to put a network into the client form above.</p>
+                    <p id="survey-status" class="text-sm text-gray-500 mb-2"></p>
+                    <div class="overflow-x-auto"><table class="w-full text-sm">
+                        <thead><tr class="text-left text-gray-500 border-b">
+                            <th class="py-2 pr-3">Network</th><th class="pr-3" style="min-width:9rem">Signal</th>
+                            <th class="pr-3">Ch</th><th class="pr-3">Security</th><th class="pr-3">Verdict</th><th></th>
+                        </tr></thead>
+                        <tbody id="survey-results"><tr><td colspan="6" class="py-2 text-gray-400">No scan yet.</td></tr></tbody>
+                    </table></div>
+                    <p class="text-xs text-gray-500 mt-3">
+                        Signal guide: better than −67 dBm good · −67 to −75 usable · −75 to −85 needs a better antenna · below −85 needs an outdoor Wi-Fi bridge.
+                        dBm values are approximate (from NetworkManager's signal %). This radio is 2.4 GHz only.
+                    </p>
+                </div>
             </div>
         </section>
     </main>
@@ -524,6 +545,57 @@
                 document.getElementById('config-ap').checked = data.is_ap_mode;
             } catch (e) {
                 console.error("Failed to load network config", e);
+            }
+        }
+
+        // Network names come from the air: always escape before putting them in HTML.
+        function escapeHtml(s) {
+            return String(s).replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
+        }
+
+        const SURVEY_LEVELS = {
+            good: { label: 'Good',      bar: 'bg-green-500',  text: 'text-green-700' },
+            ok:   { label: 'Usable',    bar: 'bg-lime-500',   text: 'text-lime-700' },
+            weak: { label: 'Weak',      bar: 'bg-orange-400', text: 'text-orange-700' },
+            poor: { label: 'Too weak',  bar: 'bg-red-500',    text: 'text-red-700' },
+        };
+
+        async function runSurvey() {
+            const btn = document.getElementById('survey-btn');
+            const status = document.getElementById('survey-status');
+            const body = document.getElementById('survey-results');
+            btn.disabled = true;
+            status.innerText = 'Scanning… (about 10 seconds)';
+            try {
+                const r = await fetch('/api/network/survey/');
+                const d = await r.json();
+                if (!r.ok) { status.innerText = 'Scan failed: ' + (d.message || r.status); return; }
+                const nets = d.networks || [];
+                status.innerText = `${nets.length} network(s) heard by ${d.interface} at ${new Date(d.scanned_at).toLocaleTimeString()}.`;
+                body.innerHTML = nets.map((n, i) => {
+                    const lv = SURVEY_LEVELS[n.level] || SURVEY_LEVELS.poor;
+                    const use = n.hidden ? '' :
+                        `<button type="button" data-survey-ssid="${i}" class="px-3 py-1 rounded border border-green-600 text-green-700 hover:bg-green-50">Use</button>`;
+                    return `<tr class="border-b last:border-0 align-top">
+                        <td class="py-2 pr-3"><span class="font-semibold">${escapeHtml(n.ssid)}</span>${n.connected ? ' <span class="text-xs text-green-700">(connected)</span>' : ''}
+                            <div class="text-xs text-gray-400">${escapeHtml(n.bssid)}</div></td>
+                        <td class="py-2 pr-3"><div class="w-full bg-gray-200 rounded h-2 mt-1"><div class="${lv.bar} h-2 rounded" style="width:${Math.max(3, n.signal_pct)}%"></div></div>
+                            <div class="text-xs text-gray-600 mt-1">${n.dbm_approx} dBm · ${n.signal_pct}%</div></td>
+                        <td class="py-2 pr-3">${escapeHtml(n.channel)}</td>
+                        <td class="py-2 pr-3 text-xs">${escapeHtml(n.security)}</td>
+                        <td class="py-2 pr-3"><span class="font-semibold ${lv.text}">${lv.label}</span><div class="text-xs text-gray-500">${escapeHtml(n.advice)}</div></td>
+                        <td class="py-2">${use}</td></tr>`;
+                }).join('') || '<tr><td colspan="6" class="py-2 text-gray-500">No networks heard.</td></tr>';
+                body.querySelectorAll('[data-survey-ssid]').forEach(b => b.addEventListener('click', () => {
+                    document.getElementById('config-wifi-client').value = nets[Number(b.dataset.surveySsid)].ssid;
+                    const pw = document.getElementById('config-wifi-client-password');
+                    pw.scrollIntoView({ behavior: 'smooth', block: 'center' });
+                    pw.focus();
+                }));
+            } catch (e) {
+                status.innerText = 'Scan failed: could not reach the controller.';
+            } finally {
+                btn.disabled = false;
             }
         }
 

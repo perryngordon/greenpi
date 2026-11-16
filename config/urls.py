@@ -18,7 +18,7 @@ from django.contrib import admin
 from django.urls import path
 from config.views import home, me
 from sensors.views import get_sensor_list, configure_sensor, mock_sensor_readings, get_sensor_history, climate
-from network.views import network_config
+from network.views import network_config, wifi_survey
 
 urlpatterns = [
     path('', home),
@@ -30,4 +30,5 @@ urlpatterns = [
     path('api/sensors/<str:sensor_id>/readings/', mock_sensor_readings),
     path('api/sensors/<str:sensor_id>/history/', get_sensor_history),
     path('api/network/', network_config),
+    path('api/network/survey/', wifi_survey),
 ]

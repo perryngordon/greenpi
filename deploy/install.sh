@@ -9,8 +9,12 @@ ENV=/etc/greenpi/greenpi.env
 sudo test -f "$ENV" || { echo "missing $ENV"; exit 1; }
 set -a; eval "$(sudo cat "$ENV")"; set +a
 
+echo "== git: accept pushes to the checked-out branch (on-site updates from a laptop)"
+git config receive.denyCurrentBranch updateInstead
+
 echo "== python deps"
-venv/bin/pip install -q -r requirements.txt
+# On site there may be no internet; already-installed pins don't need it.
+venv/bin/pip install -q -r requirements.txt || echo "WARNING: pip install failed (offline?); continuing with installed packages"
 
 echo "== wifi interface names (persist via .link files, applied live now)"
 sudo install -m 644 deploy/network/*.link /etc/systemd/network/

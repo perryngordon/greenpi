@@ -38,6 +38,17 @@ GREENPI_STA_INTERFACE=wlsta0
 
 Names are pinned by MAC in `deploy/network/*.link`; update the MACs there if a dongle is swapped.
 
+## Updating
+
+- **Pi has internet:** `ssh admin@10.8.0.21 'cd ~/greenpi && git pull --ff-only && deploy/install.sh'`
+- **On site, no internet (Windows laptop):** one-time setup:
+  `winget install Git.Git`, then `git clone https://github.com/perryngordon/greenpi.git` and
+  `git checkout step1-services` (at home, while online; `git pull` to refresh before a visit).
+  At the greenhouse: join **GreenPi_WiFi**, then from the repo folder in PowerShell:
+  `.\deploy\onsite-update.ps1`. It pushes the branch straight to the Pi (the Pi's repo accepts
+  pushes to its checked-out branch: `receive.denyCurrentBranch updateInstead`) and runs `install.sh`.
+  Same script over the VPN from anywhere: `.\deploy\onsite-update.ps1 -PiHost 10.8.0.21`.
+
 ## Remote access (VPN)
 
 The Pi is a WireGuard peer on wg-hub (`108.61.151.131:51820`) at **10.8.0.21**, so it can be
