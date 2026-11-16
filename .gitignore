@@ -9,3 +9,8 @@ rtl8188eu/
 
 # Personal Claude Code settings
 .claude/settings.local.json
+
+# Generated / device-local
+staticfiles/
+data/
+db.sqlite3-*

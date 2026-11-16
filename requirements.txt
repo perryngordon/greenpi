@@ -1,0 +1,5 @@
+Django==5.2.15
+djangorestframework==3.17.1
+smbus2==0.6.1
+gunicorn==23.0.0
+whitenoise==6.8.2

@@ -1,0 +1,6 @@
+# Comfast RTL8188EUS (rtl8xxxu) -> Wi-Fi client uplink
+[Match]
+MACAddress=e0:e1:a9:93:c8:e1
+
+[Link]
+Name=wlsta0

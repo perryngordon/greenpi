@@ -1,0 +1,13 @@
+[Unit]
+Description=GreenPi hotspot address on wlap0
+BindsTo=sys-subsystem-net-devices-wlap0.device
+After=sys-subsystem-net-devices-wlap0.device
+Before=hostapd.service dnsmasq.service
+
+[Service]
+Type=oneshot
+RemainAfterExit=yes
+ExecStart=/usr/sbin/ip addr replace 10.42.0.1/24 dev wlap0
+
+[Install]
+WantedBy=multi-user.target
