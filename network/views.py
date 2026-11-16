@@ -159,6 +159,7 @@ def wifi_survey(request):
     if r.returncode != 0:
         return JsonResponse({"status": "error", "message": r.stderr.strip() or "Scan failed."}, status=500)
 
+    own_ssid = _get_config().ssid  # the box's own hotspot shows up in its scan
     networks = []
     for line in r.stdout.splitlines():
         f = _nmcli_fields(line)
@@ -174,6 +175,7 @@ def wifi_survey(request):
         networks.append({
             "ssid": ssid or "(hidden network)",
             "hidden": not ssid,
+            "own_hotspot": bool(ssid) and ssid == own_ssid,
             "bssid": bssid,
             "channel": chan,
             "band": "5 GHz" if freq.strip().startswith("5") else "2.4 GHz",

@@ -574,10 +574,10 @@
                 status.innerText = `${nets.length} network(s) heard by ${d.interface} at ${new Date(d.scanned_at).toLocaleTimeString()}.`;
                 body.innerHTML = nets.map((n, i) => {
                     const lv = SURVEY_LEVELS[n.level] || SURVEY_LEVELS.poor;
-                    const use = n.hidden ? '' :
+                    const use = (n.hidden || n.own_hotspot) ? '' :
                         `<button type="button" data-survey-ssid="${i}" class="px-3 py-1 rounded border border-green-600 text-green-700 hover:bg-green-50">Use</button>`;
                     return `<tr class="border-b last:border-0 align-top">
-                        <td class="py-2 pr-3"><span class="font-semibold">${escapeHtml(n.ssid)}</span>${n.connected ? ' <span class="text-xs text-green-700">(connected)</span>' : ''}
+                        <td class="py-2 pr-3"><span class="font-semibold">${escapeHtml(n.ssid)}</span>${n.connected ? ' <span class="text-xs text-green-700">(connected)</span>' : ''}${n.own_hotspot ? ' <span class="text-xs text-gray-500">(this box\'s hotspot)</span>' : ''}
                             <div class="text-xs text-gray-400">${escapeHtml(n.bssid)}</div></td>
                         <td class="py-2 pr-3"><div class="w-full bg-gray-200 rounded h-2 mt-1"><div class="${lv.bar} h-2 rounded" style="width:${Math.max(3, n.signal_pct)}%"></div></div>
                             <div class="text-xs text-gray-600 mt-1">${n.dbm_approx} dBm · ${n.signal_pct}%</div></td>
