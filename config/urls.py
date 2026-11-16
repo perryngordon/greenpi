@@ -14,13 +14,31 @@ Including another URLconf
     1. Import the include() function: from django.urls import include, path
     2. Add a URL to urlpatterns:  path('blog/', include('blog.urls'))
 """
+from django.conf import settings
 from django.contrib import admin
-from django.urls import path
-from config.views import home, me
+from django.urls import path, re_path
+from django.views.static import serve
+from config.views import home, me, preview
 from sensors.views import get_sensor_list, configure_sensor, mock_sensor_readings, get_sensor_history, climate
 from network.views import network_config, wifi_survey
+from wiki.views import wiki_list, wiki_page, wiki_history
+from blog.views import blog_list, blog_post, photo_upload
+from almanac.views import almanac_month, almanac_day, almanac_events, almanac_event
 
 urlpatterns = [
+    path('api/wiki/', wiki_list),
+    path('api/wiki/<slug:slug>/', wiki_page),
+    path('api/wiki/<slug:slug>/history/', wiki_history),
+    path('api/blog/', blog_list),
+    path('api/blog/<int:post_id>/', blog_post),
+    path('api/photos/', photo_upload),
+    path('api/preview/', preview),
+    path('api/almanac/month/', almanac_month),
+    path('api/almanac/day/<str:day>/', almanac_day),
+    path('api/almanac/events/', almanac_events),
+    path('api/almanac/events/<int:event_id>/', almanac_event),
+    # Photos live on the data drive (MEDIA_ROOT). Low traffic, so Django serves them.
+    re_path(r'^media/(?P<path>.*)$', serve, {'document_root': settings.MEDIA_ROOT}),
     path('', home),
     path('api/climate/', climate),
     path('api/me/', me),

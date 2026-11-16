@@ -14,16 +14,34 @@
         .nav-link:hover { color: #f0fdf4; background: #16a34a; border-radius: 0.5rem; }
         .section { display: none; }
         .section.active { display: block; }
+        /* Rendered Markdown (wiki, blog, almanac notes) */
+        .prose h1 { font-size: 1.6rem; font-weight: 700; margin: 1rem 0 .5rem; }
+        .prose h2 { font-size: 1.35rem; font-weight: 700; margin: 1rem 0 .5rem; }
+        .prose h3 { font-size: 1.15rem; font-weight: 600; margin: .8rem 0 .4rem; }
+        .prose p { margin: .6rem 0; line-height: 1.6; }
+        .prose ul { list-style: disc; padding-left: 1.5rem; margin: .5rem 0; }
+        .prose ol { list-style: decimal; padding-left: 1.5rem; margin: .5rem 0; }
+        .prose a { color: #15803d; text-decoration: underline; }
+        .prose a.wikilink { text-decoration-style: dotted; }
+        .prose img { max-width: 100%; height: auto; border-radius: .5rem; margin: .75rem 0; }
+        .prose blockquote { border-left: 4px solid #bbf7d0; padding-left: 1rem; color: #4b5563; }
+        .prose code { background: #f3f4f6; padding: 0 .25rem; border-radius: .25rem; }
+        .prose pre { background: #f3f4f6; padding: .75rem; border-radius: .5rem; overflow-x: auto; }
+        .prose table { border-collapse: collapse; margin: .75rem 0; }
+        .prose th, .prose td { border: 1px solid #e5e7eb; padding: .25rem .5rem; }
     </style>
 </head>
 <body class="font-sans text-gray-900">
-    <nav class="bg-green-600 p-4 text-white flex justify-between items-center shadow-lg sticky top-0 z-50">
-        <h1 class="text-2xl font-bold cursor-pointer" onclick="showSection('home')">🌿 Greenhouse</h1>
-        <div class="flex flex-wrap gap-1">
-            <a href="javascript:void(0)" onclick="showSection('home')" class="nav-link px-3 py-1">Climate</a>
-            <a href="javascript:void(0)" onclick="showSection('sensors')" class="nav-link px-3 py-1">Sensors</a>
-            <a href="javascript:void(0)" onclick="showSection('wiki')" class="nav-link px-3 py-1">Wiki</a>
-            <a href="javascript:void(0)" onclick="showSection('config')" class="nav-link px-3 py-1">Config</a>
+    <nav class="bg-green-600 px-4 py-3 text-white flex flex-wrap md:flex-nowrap justify-between items-center gap-x-4 gap-y-1 shadow-lg sticky top-0 z-50">
+        <h1 class="text-2xl font-bold whitespace-nowrap"><a href="#/climate">🌿 Greenhouse</a></h1>
+        <!-- One row on phones: scrolls sideways instead of wrapping into a tall sticky header -->
+        <div class="flex gap-1 overflow-x-auto whitespace-nowrap w-full md:w-auto -mx-1 px-1">
+            <a href="#/climate" class="nav-link px-3 py-1">Climate</a>
+            <a href="#/almanac" class="nav-link px-3 py-1">Almanac</a>
+            <a href="#/blog" class="nav-link px-3 py-1">Blog</a>
+            <a href="#/wiki" class="nav-link px-3 py-1">Wiki</a>
+            <a href="#/sensors" class="nav-link px-3 py-1">Sensors</a>
+            <a href="#/config" class="nav-link px-3 py-1">Config</a>
         </div>
     </nav>
 
@@ -93,14 +111,56 @@
         </section>
 
         <!-- Wiki Section -->
-        <section id="wiki" class="section">
-            <header class="mb-8">
-                <h2 class="text-3xl font-semibold text-green-800">Garden Wiki</h2>
-                <p class="text-gray-600">Knowledge base for your garden.</p>
+        <section id="almanac" class="section">
+            <header class="mb-4 flex items-center justify-between flex-wrap gap-3">
+                <div>
+                    <h2 class="text-3xl font-semibold text-green-800">Almanac</h2>
+                    <p class="text-gray-600 text-sm">Each day's greenhouse highs &amp; lows, sun, moon, events and journal.</p>
+                </div>
+                <div class="flex items-center gap-1">
+                    <button id="alm-prev" class="px-3 py-2 rounded bg-white shadow hover:bg-green-50" aria-label="Previous month">&lsaquo;</button>
+                    <span id="alm-title" class="px-2 font-semibold min-w-[9rem] text-center"></span>
+                    <button id="alm-next" class="px-3 py-2 rounded bg-white shadow hover:bg-green-50" aria-label="Next month">&rsaquo;</button>
+                    <button id="alm-today" class="ml-2 px-3 py-2 rounded bg-white shadow hover:bg-green-50 text-sm">Today</button>
+                    <button id="alm-add-event" class="staff-only hidden ml-2 px-3 py-2 rounded bg-green-600 text-white text-sm hover:bg-green-700">+ Event</button>
+                </div>
             </header>
-            <div class="card p-8">
-                <p class="text-gray-700">The wiki is currently being populated. <br>Add your growing notes, plant guides, and schedules here.</p>
+            <p id="alm-location-note" class="hidden text-xs text-gray-500 mb-2">Sunrise/sunset need the greenhouse location (GREENPI_LATITUDE / GREENPI_LONGITUDE in /etc/greenpi/greenpi.env).</p>
+            <div class="card p-2 md:p-4 mb-6">
+                <div class="grid grid-cols-7 text-center text-xs font-semibold text-gray-500 mb-1">
+                    <div>Mon</div><div>Tue</div><div>Wed</div><div>Thu</div><div>Fri</div><div>Sat</div><div>Sun</div>
+                </div>
+                <div id="alm-grid" class="grid grid-cols-7 gap-1"></div>
             </div>
+            <div id="alm-day" class="card p-4 md:p-6 hidden"></div>
+        </section>
+
+        <section id="blog" class="section">
+            <header class="mb-4 flex items-center justify-between flex-wrap gap-3">
+                <div>
+                    <h2 class="text-3xl font-semibold text-green-800">Greenhouse journal</h2>
+                    <p class="text-gray-600 text-sm">Notes and photos from the greenhouse.</p>
+                </div>
+                <div class="flex gap-2">
+                    <input id="blog-search" type="search" placeholder="Search posts" class="border border-gray-300 rounded-md p-2 text-sm">
+                    <button id="blog-new" class="staff-only hidden px-4 py-2 rounded bg-green-600 text-white text-sm hover:bg-green-700">+ New post</button>
+                </div>
+            </header>
+            <div id="blog-view"></div>
+        </section>
+
+        <section id="wiki" class="section">
+            <header class="mb-4 flex items-center justify-between flex-wrap gap-3">
+                <div>
+                    <h2 class="text-3xl font-semibold text-green-800">Greenhouse wiki</h2>
+                    <p class="text-gray-600 text-sm">Reference pages: plants, beds, equipment, how-tos. Link pages with <code>[[Page name]]</code>.</p>
+                </div>
+                <div class="flex gap-2">
+                    <input id="wiki-search" type="search" placeholder="Search pages" class="border border-gray-300 rounded-md p-2 text-sm">
+                    <button id="wiki-new" class="staff-only hidden px-4 py-2 rounded bg-green-600 text-white text-sm hover:bg-green-700">+ New page</button>
+                </div>
+            </header>
+            <div id="wiki-view"></div>
         </section>
 
         <!-- Config Section -->
@@ -194,10 +254,37 @@
         </section>
     </main>
 
+    <!-- Shared editor overlay for blog posts, wiki pages and almanac events -->
+    <div id="editor" class="hidden fixed inset-0 z-[60] bg-black/40 overflow-y-auto">
+        <div class="bg-white max-w-3xl mx-auto my-4 md:my-10 rounded-xl shadow-xl p-4 md:p-6">
+            <h3 id="ed-heading" class="text-xl font-bold mb-4">Edit</h3>
+            <div class="space-y-3">
+                <input id="ed-title" type="text" placeholder="Title" class="w-full border border-gray-300 rounded-md p-2 text-lg">
+                <div id="ed-meta" class="flex flex-wrap gap-3 items-center text-sm"></div>
+                <div class="flex flex-wrap gap-2 items-center">
+                    <label id="ed-photo-label" class="cursor-pointer px-3 py-1 rounded border border-green-600 text-green-700 hover:bg-green-50 text-sm">
+                        📷 Add photo<input id="ed-photo" type="file" accept="image/*" class="hidden">
+                    </label>
+                    <button id="ed-preview-btn" type="button" class="px-3 py-1 rounded border border-gray-400 text-gray-700 hover:bg-gray-50 text-sm">Preview</button>
+                    <span id="ed-status" class="text-xs text-gray-500"></span>
+                </div>
+                <textarea id="ed-body" rows="14" placeholder="Write in Markdown. Link wiki pages with [[Page name]]." class="w-full border border-gray-300 rounded-md p-2 font-mono text-sm"></textarea>
+                <div id="ed-preview" class="hidden prose border rounded-md p-3 bg-gray-50"></div>
+            </div>
+            <div class="flex flex-wrap justify-between gap-2 mt-4">
+                <button id="ed-delete" type="button" class="hidden px-4 py-2 rounded text-red-700 border border-red-300 hover:bg-red-50">Delete</button>
+                <div class="flex gap-2 ml-auto">
+                    <button id="ed-cancel" type="button" class="px-4 py-2 rounded border border-gray-300 hover:bg-gray-50">Cancel</button>
+                    <button id="ed-save" type="button" class="px-5 py-2 rounded bg-green-600 text-white font-semibold hover:bg-green-700">Save</button>
+                </div>
+            </div>
+        </div>
+    </div>
+
     <script>
         function showSection(sectionId) {
-            // Clicking "Sensors" (or any tab) while a sensor is open returns to the list.
-            if (selectedSensor) backToList();
+            // Switching tabs while a sensor is open closes it (back to the list next time).
+            if (selectedSensor) hideDetails();
             document.querySelectorAll('.section').forEach(s => s.classList.remove('active'));
             const target = document.getElementById(sectionId);
             if (target) {
@@ -233,7 +320,7 @@
             document.getElementById('details').classList.add('hidden');
             selectedSensor = null;
             if (historyChart) { historyChart.destroy(); historyChart = null; }
-            if (location.hash.startsWith('#sensor-')) history.replaceState(null, '', location.pathname);
+            if (location.hash.startsWith('#sensor-')) history.replaceState(null, '', '#/sensors');
         }
 
         async function loadSensors() {
@@ -642,9 +729,8 @@
             }
         }
 
-        loadClimate();
-        loadSensors();
-        loadNetworkConfig();
+        // Initial data loading is done by the router in content.js (per tab).
     </script>
+    <script src="/static/js/content.js"></script>
 </body>
 </html>

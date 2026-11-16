@@ -3,3 +3,7 @@ djangorestframework==3.17.1
 smbus2==0.6.1
 gunicorn==23.0.0
 whitenoise==6.8.2
+Markdown==3.7
+nh3==0.2.20
+astral==3.2
+Pillow==11.0.0

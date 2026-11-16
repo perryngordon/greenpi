@@ -27,6 +27,19 @@ DATA_DIR = Path(os.environ.get('GREENPI_DATA_DIR', BASE_DIR / 'data'))
 GREENPI_AP_INTERFACE = os.environ.get('GREENPI_AP_INTERFACE', 'wlap0')
 GREENPI_STA_INTERFACE = os.environ.get('GREENPI_STA_INTERFACE', 'wlsta0')
 
+
+def _float_env(name):
+    try:
+        return float(os.environ[name])
+    except (KeyError, ValueError):
+        return None
+
+
+# Greenhouse location for the almanac's sunrise/sunset (computed on-device,
+# works offline). Unset = the almanac simply omits sun times.
+GREENPI_LATITUDE = _float_env('GREENPI_LATITUDE')
+GREENPI_LONGITUDE = _float_env('GREENPI_LONGITUDE')
+
 ALLOWED_HOSTS = ['*']
 
 
@@ -41,6 +54,9 @@ INSTALLED_APPS = [
     'django.contrib.staticfiles',
     'sensors',
     'network',
+    'wiki',
+    'blog',
+    'almanac',
 ]
 
 MIDDLEWARE = [

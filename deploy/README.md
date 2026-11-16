@@ -18,6 +18,8 @@ DJANGO_DEBUG=0
 GREENPI_DATA_DIR=/srv/greenpi-data
 GREENPI_AP_INTERFACE=wlap0
 GREENPI_STA_INTERFACE=wlsta0
+GREENPI_LATITUDE=...         # optional: greenhouse location for almanac sunrise/sunset
+GREENPI_LONGITUDE=...        # (decimal degrees, west is negative)
 ```
 
 ## What runs
