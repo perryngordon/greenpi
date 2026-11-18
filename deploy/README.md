@@ -48,8 +48,18 @@ Names are pinned by MAC in `deploy/network/*.link`; update the MACs there if a d
   `git checkout step1-services` (at home, while online; `git pull` to refresh before a visit).
   At the greenhouse: join **GreenPi_WiFi**, then from the repo folder in PowerShell:
   `.\deploy\onsite-update.ps1`. It pushes the branch straight to the Pi (the Pi's repo accepts
-  pushes to its checked-out branch: `receive.denyCurrentBranch updateInstead`) and runs `install.sh`.
+  pushes to its checked-out branch: `receive.denyCurrentBranch updateInstead`), runs `install.sh`,
+  then copies a fresh database snapshot, photos and Wi-Fi surveys to `~\greenpi-snapshots\`.
+  Back home on the VPN, `.\deploy\push-snapshot.ps1` loads that into the staging copy.
   Same script over the VPN from anywhere: `.\deploy\onsite-update.ps1 -PiHost 10.8.0.21`.
+  The first run adds the laptop's SSH key to the Pi (asks for the Pi's admin password once).
+
+## Staging copy (develop without the greenhouse)
+
+**http://10.8.0.22/** = pve CT 219, the same app with `GREENPI_STAGING=1`: simulated sensors,
+no radios, and the greenhouse's real data copied in nightly over the VPN (or by laptop
+when the Pi is offline). See [`staging/README.md`](staging/README.md).
+`install.sh` refuses to run there; staging uses `deploy/staging/install-staging.sh`.
 
 ## Remote access (VPN)
 

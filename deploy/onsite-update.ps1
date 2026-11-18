@@ -37,15 +37,21 @@ if (-not $NoData) {
     Write-Host "Taking a fresh database snapshot on the Pi ..."
     ssh "admin@$PiHost" "sudo systemctl start greenpi-backup.service"
     if ($LASTEXITCODE -ne 0) { throw "snapshot failed on the Pi" }
-    $db = (ssh "admin@$PiHost" "ls -1 /srv/greenpi-data/backups/db/greenpi-*.sqlite3 | sort | tail -1").Trim()
+    $db = "" + (ssh "admin@$PiHost" "ls -1 /srv/greenpi-data/backups/db/greenpi-*.sqlite3 | sort | tail -1")
+    $db = $db.Trim()
+    if (-not $db) { throw "no database snapshot found on the Pi" }
 
+    # Paths are passed without a trailing backslash: "C:\Users\A B\x\" would
+    # turn into an escaped quote if the user folder has a space in it.
     $dest = Join-Path $HOME ("greenpi-snapshots\" + (Get-Date -Format "yyyyMMdd-HHmm"))
     New-Item -ItemType Directory -Force "$dest\backups\db" | Out-Null
     Write-Host "Copying data to $dest ..."
-    scp -q "admin@${PiHost}:$db" "$dest\backups\db\"
+    scp -q "admin@${PiHost}:$db" "$dest\backups\db"
     if ($LASTEXITCODE -ne 0) { throw "copying the database failed" }
-    scp -q -r "admin@${PiHost}:/srv/greenpi-data/media" "$dest\"
-    scp -q -r "admin@${PiHost}:/srv/greenpi-data/surveys" "$dest\" 2>$null
+    scp -q -r "admin@${PiHost}:/srv/greenpi-data/media" "$dest"
+    if ($LASTEXITCODE -ne 0) { Write-Warning "photos were not copied" }
+    scp -q -r "admin@${PiHost}:/srv/greenpi-data/surveys" "$dest"
+    if ($LASTEXITCODE -ne 0) { Write-Warning "no Wi-Fi surveys copied (none saved yet?)" }
     $size = "{0:N1} MB" -f ((Get-ChildItem $dest -Recurse -File | Measure-Object Length -Sum).Sum / 1MB)
     Write-Host "Saved $size. Back home on the VPN, run .\deploy\push-snapshot.ps1 to load it into staging."
 }
