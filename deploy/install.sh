@@ -34,6 +34,20 @@ rename_by_mac 60:38:e0:09:cc:9c wlap0
 rename_by_mac e0:e1:a9:93:c8:e1 wlsta0
 sudo systemctl reload NetworkManager
 
+echo "== battery-backed clock (CM4 IO Board PCF85063A + CR2032): no internet at the greenhouse"
+CFG=/boot/firmware/config.txt
+if ! grep -q "^dtoverlay=i2c-rtc,pcf85063a" "$CFG"; then
+  # Appended at the end = inside the final [all] section.
+  printf '\n# greenpi: CM4 IO Board RTC (needs a reboot)\n[all]\ndtparam=i2c_vc=on\ndtoverlay=i2c-rtc,pcf85063a,i2c_csi_dsi\n' | sudo tee -a "$CFG" >/dev/null
+  echo "RTC enabled in $CFG: REBOOT to activate"
+fi
+sudo install -m 755 deploy/rtc/greenpi-rtc-set.sh /usr/local/sbin/greenpi-rtc-set
+sudo install -m 755 deploy/rtc/greenpi-set-clock.sh /usr/local/sbin/greenpi-set-clock
+sudo install -m 644 deploy/rtc/90-greenpi-rtc.rules /etc/udev/rules.d/
+if [ -e /dev/rtc0 ] && [ "$(timedatectl show -p NTPSynchronized --value)" = yes ]; then
+  sudo hwclock --rtc=/dev/rtc0 --systohc --utc && echo "RTC set from network time"
+fi
+
 echo "== systemd units"
 sudo install -m 644 deploy/systemd/*.service deploy/systemd/*.timer /etc/systemd/system/
 sudo install -d /etc/systemd/system/hostapd.service.d

@@ -1,0 +1,2 @@
+# CM4 IO Board battery-backed RTC (PCF85063A): set the clock from it at boot.
+ACTION=="add", SUBSYSTEM=="rtc", KERNEL=="rtc0", RUN+="/usr/local/sbin/greenpi-rtc-set"

@@ -19,6 +19,11 @@ $ErrorActionPreference = "Stop"
 . (Join-Path $PSScriptRoot "ssh-key.ps1")
 Ensure-GreenPiKey $PiHost
 
+# No internet at the greenhouse: if the Pi's clock isn't network-synced, set it
+# from this laptop (it also updates the battery-backed clock).
+$utc = (Get-Date).ToUniversalTime().ToString("yyyy-MM-dd HH:mm:ss")
+ssh "admin@$PiHost" "sudo /usr/local/sbin/greenpi-set-clock '$utc'"
+
 if (-not $DataOnly) {
     if (-not $Branch) { $Branch = (git rev-parse --abbrev-ref HEAD).Trim() }
     $dirty = git status --porcelain
