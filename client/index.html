@@ -542,16 +542,21 @@
                 newest ? `Last reading ${fmtAgo(newest)} · times in ${data.timezone}` : 'No readings yet.';
 
             // Chart: temperature on the left axis, humidity on the right.
+            // A stretch with no readings (power cut, sampler down) is drawn as a
+            // break in the line, not a straight ramp across the missing hours.
+            const maxGap = Math.max(3 * (data.bucket_seconds || 60), 15 * 60) * 1000;
+            const withGaps = pts => pts.flatMap((p, j) =>
+                j && p.x - pts[j - 1].x > maxGap ? [{ x: (p.x + pts[j - 1].x) / 2, y: null }, p] : [p]);
             const datasets = [];
             sensors.forEach((s, i) => {
                 if (s.keys.includes('temperature_f')) datasets.push({
                     label: `${s.name} °F`, yAxisID: 'temp',
-                    data: s.series.filter(p => 'temperature_f' in p).map(p => ({ x: p.t, y: p.temperature_f })),
+                    data: withGaps(s.series.filter(p => 'temperature_f' in p).map(p => ({ x: p.t, y: p.temperature_f }))),
                     borderColor: TEMP_COLORS[i % TEMP_COLORS.length], backgroundColor: TEMP_COLORS[i % TEMP_COLORS.length],
                     borderWidth: 2, pointRadius: 0, tension: 0.2 });
                 if (s.keys.includes('humidity_pct')) datasets.push({
                     label: `${s.name} RH %`, yAxisID: 'rh',
-                    data: s.series.filter(p => 'humidity_pct' in p).map(p => ({ x: p.t, y: p.humidity_pct })),
+                    data: withGaps(s.series.filter(p => 'humidity_pct' in p).map(p => ({ x: p.t, y: p.humidity_pct }))),
                     borderColor: RH_COLORS[i % RH_COLORS.length], backgroundColor: RH_COLORS[i % RH_COLORS.length],
                     borderWidth: 1.5, borderDash: [4, 3], pointRadius: 0, tension: 0.2 });
             });
