@@ -14,7 +14,7 @@ echo "== python deps"
 venv/bin/pip install -q -r requirements.txt
 
 echo "== data dir"
-sudo install -d -o admin -g admin "${GREENPI_DATA_DIR:-/srv/greenpi-data}"
+sudo install -d -o admin -g admin "${GREENPI_DATA_DIR:-/srv/greenpi-data}" "${GREENPI_DATA_DIR:-/srv/greenpi-data}/backups"
 
 echo "== database, static files, admin user, simulated sensors"
 M="venv/bin/python manage.py"
@@ -28,7 +28,12 @@ sudo install -m 644 deploy/systemd/greenpi-web.service deploy/systemd/greenpi-sa
   deploy/staging/greenpi-stage-sync.service deploy/staging/greenpi-stage-sync.timer /etc/systemd/system/
 sudo install -m 755 deploy/staging/load-snapshot.sh /usr/local/sbin/greenpi-load-snapshot
 sudo install -m 755 deploy/staging/stage-sync.sh /usr/local/sbin/greenpi-stage-sync
+if sudo test -f /etc/wireguard/wg0.conf; then  # VPN 10.8.0.22: same watchdog as the Pi
+  sudo install -m 755 deploy/vpn/greenpi-vpn-watchdog.sh /usr/local/sbin/greenpi-vpn-watchdog
+  sudo install -m 644 deploy/vpn/greenpi-vpn-watchdog.service deploy/vpn/greenpi-vpn-watchdog.timer /etc/systemd/system/
+fi
 sudo systemctl daemon-reload
+sudo test -f /etc/wireguard/wg0.conf && sudo systemctl enable -q --now wg-quick@wg0 greenpi-vpn-watchdog.timer
 sudo systemctl enable -q --now greenpi-web greenpi-sampler greenpi-backup.timer greenpi-stage-sync.timer
 sudo systemctl restart greenpi-web greenpi-sampler
 sleep 3

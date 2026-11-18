@@ -31,7 +31,8 @@ class Command(BaseCommand):
         if not snap.is_file():
             raise CommandError(f"{snap} not found")
 
-        src = sqlite3.connect(f"file:{snap}?mode=ro", uri=True)
+        # immutable: read without creating -wal/-shm files next to the snapshot.
+        src = sqlite3.connect(f"file:{snap}?mode=ro&immutable=1", uri=True)
         try:
             ok = src.execute("PRAGMA integrity_check").fetchone()[0]
             if ok != "ok":
