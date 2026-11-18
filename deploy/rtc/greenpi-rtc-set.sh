@@ -1,9 +1,9 @@
 #!/bin/sh
 # Called by udev when the battery-backed RTC appears at boot (90-greenpi-rtc.rules).
-# The PCF85063A driver is a module, so the kernel's own boot-time RTC read doesn't
-# apply, and Debian's hwclock-set does nothing under systemd. Set the clock from the
-# RTC, but only forwards: fake-hwclock has already restored the last saved time,
-# and a dead coin cell would make the RTC read ~2000 and drag the clock backwards.
+# Safety net: on this Pi the kernel already sets the clock from the RTC ~1.6 s into
+# boot (CONFIG_RTC_HCTOSYS; verified 2026-11-18), and Debian's hwclock-set does
+# nothing under systemd. If the kernel ever doesn't, set the clock from the RTC here,
+# but only forwards: a dead coin cell would make the RTC read ~2000.
 rtc=$(/sbin/hwclock --rtc=/dev/rtc0 --get --utc 2>/dev/null) || exit 0
 rtc_s=$(date -d "$rtc" +%s 2>/dev/null) || exit 0
 now_s=$(date +%s)
