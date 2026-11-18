@@ -1,13 +1,19 @@
 import smbus2
-import json
+
+from django.conf import settings
 
 from .drivers import AS7331Driver, SHTC3Driver
+from .simulated import SIMULATED_DRIVERS
 
 # Maps an I2C address to the driver class that knows how to read it.
-DRIVERS = {
-    '0x74': AS7331Driver,
-    '0x70': SHTC3Driver,
-}
+# The staging copy (no I2C bus) uses simulated sensors with the same interface.
+if settings.GREENPI_STAGING:
+    DRIVERS = dict(SIMULATED_DRIVERS)
+else:
+    DRIVERS = {
+        '0x74': AS7331Driver,
+        '0x70': SHTC3Driver,
+    }
 
 
 def read_calibrated(address):
@@ -33,6 +39,8 @@ class SensorDiscoveryService:
     @staticmethod
     def scan_i2c(bus_number: int = 1):
         """Scans the specified I2C bus and returns a list of device addresses."""
+        if settings.GREENPI_STAGING:
+            return list(SIMULATED_DRIVERS)
         devices = []
         try:
             with smbus2.SMBus(bus_number) as bus:

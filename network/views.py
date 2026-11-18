@@ -144,11 +144,24 @@ def _rate(dbm):
     return "poor", "Too weak: use an outdoor Wi-Fi bridge (e.g. TP-Link CPE210)."
 
 
+def _latest_saved_survey():
+    """Staging has no radio: show the newest scan copied over from the Pi."""
+    saved = sorted((settings.DATA_DIR / "surveys").glob("survey-*.json"))
+    if not saved:
+        return {"interface": "staging", "scanned_at": None, "networks": [],
+                "note": "Staging copy: no radio here, and no survey has been copied from the Pi yet."}
+    result = json.loads(saved[-1].read_text())
+    result["note"] = f"Staging copy: showing the Pi's saved scan {saved[-1].name}, not a live scan."
+    return result
+
+
 def wifi_survey(request):
     """Scan with the client radio and report every network it can hear."""
     denied = _staff_required(request)
     if denied:
         return denied
+    if settings.GREENPI_STAGING:
+        return JsonResponse(_latest_saved_survey())
     iface = settings.GREENPI_STA_INTERFACE
     cmd = ["sudo", "nmcli", "-t", "-f", "IN-USE,SSID,BSSID,CHAN,FREQ,SIGNAL,SECURITY",
            "device", "wifi", "list", "ifname", iface, "--rescan", "yes"]
@@ -237,6 +250,10 @@ def network_config(request):
                 val = val.lower() == "true"
             setattr(config, field, val)
     config.save()
+
+    if settings.GREENPI_STAGING:
+        return JsonResponse({"status": "success",
+                             "message": "Staging copy: saved, but nothing is applied to any radio."})
 
     try:
         if {"ssid", "wifi_password", "ap_dhcp_range", "local_hostname", "is_ap_mode"} & data.keys():

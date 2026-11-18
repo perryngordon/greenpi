@@ -26,6 +26,9 @@ DEBUG = os.environ.get('DJANGO_DEBUG', '1') == '1'
 DATA_DIR = Path(os.environ.get('GREENPI_DATA_DIR', BASE_DIR / 'data'))
 GREENPI_AP_INTERFACE = os.environ.get('GREENPI_AP_INTERFACE', 'wlap0')
 GREENPI_STA_INTERFACE = os.environ.get('GREENPI_STA_INTERFACE', 'wlsta0')
+# Staging copy (pve container): simulated sensors, network changes saved but never
+# applied, a banner in the UI, and `manage.py load_snapshot` allowed.
+GREENPI_STAGING = os.environ.get('GREENPI_STAGING', '0') == '1'
 
 
 def _float_env(name):

@@ -520,6 +520,22 @@
         }
     }
 
+    // Staging copy (pve): say so on every page, with how fresh the real data is.
+    async function stagingBanner() {
+        const r = await api('/api/me/');
+        const st = r.ok && r.data && r.data.staging;
+        if (!st) return;
+        const snap = st.snapshot;
+        const el = document.getElementById('staging-banner');
+        el.innerHTML = '<b>STAGING COPY</b>, not the greenhouse. ' + (snap
+            ? `Real greenhouse data up to <b>${escapeHtml(new Date(snap.last_reading_at || snap.loaded_at).toLocaleString())}</b>` +
+              ` (from ${escapeHtml(snap.source || 'the Pi')}); readings after that are simulated.`
+            : 'All sensor readings are simulated; no data has been copied from the Pi yet.');
+        el.classList.remove('hidden');
+        document.title = '[staging] ' + document.title;
+    }
+
     window.addEventListener('hashchange', route);
     route();
+    stagingBanner();
 })();

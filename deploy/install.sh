@@ -8,6 +8,7 @@ REPO=$(pwd)
 ENV=/etc/greenpi/greenpi.env
 sudo test -f "$ENV" || { echo "missing $ENV"; exit 1; }
 set -a; eval "$(sudo cat "$ENV")"; set +a
+if [ "${GREENPI_STAGING:-0}" = 1 ]; then echo "this is the staging copy: use deploy/staging/install-staging.sh"; exit 1; fi
 
 echo "== git: accept pushes to the checked-out branch (on-site updates from a laptop)"
 git config receive.denyCurrentBranch updateInstead
@@ -47,24 +48,7 @@ echo "== database, static files, admin user, sensors"
 M="venv/bin/python manage.py"
 $M migrate --noinput
 $M collectstatic --noinput -v 0
-DJANGO_SUPERUSER_PASSWORD="$GREENPI_ADMIN_PASSWORD" $M shell -c "
-from django.contrib.auth import get_user_model
-U = get_user_model()
-if not U.objects.filter(username='admin').exists():
-    U.objects.create_superuser('admin', '', '$GREENPI_ADMIN_PASSWORD'); print('created web admin user')
-from sensors.models import Sensor
-seed = [('0x70', 'Air temp & humidity (SHTC3)', 'SparkFun SHTC3', 60),
-        ('0x74', 'UV light (AS7331)', 'SparkFun AS7331', 300)]
-for addr, name, desc, every in seed:
-    s, new = Sensor.objects.get_or_create(address=addr, defaults=dict(
-        name=name, description=desc, sensor_type='i2c', status='configured',
-        sample_interval_seconds=every))
-    if new: print('configured sensor', addr, name)
-# The AS7331's temperature is its die temperature: keep it off the climate view.
-uv = Sensor.objects.filter(address='0x74').first()
-if uv and (uv.metadata or {}).get('climate') is not False:
-    uv.metadata = {**(uv.metadata or {}), 'climate': False}; uv.save(); print('UV sensor excluded from climate view')
-"
+$M seed_defaults
 
 echo "== hotspot config (from DB; first run takes the password from $ENV)"
 $M apply_network --from-env
