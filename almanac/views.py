@@ -11,7 +11,7 @@ from django.utils import timezone
 
 from blog.models import Post
 from blog.views import post_summary
-from config.api import bad_request, is_staff, json_body, staff_only
+from config.api import bad_request, can_edit, editor_only, json_body
 from config.markup import render
 from sensors.models import Sensor, SensorReading
 
@@ -120,7 +120,7 @@ def _event_json(e, full=False):
 
 def _posts_between(request, start, end):
     posts = Post.objects.filter(date__gte=start, date__lt=end)
-    if not is_staff(request):
+    if not can_edit(request):
         posts = posts.filter(published=True)
     out = {}
     for p in posts.order_by("date", "created_at"):
@@ -159,7 +159,7 @@ def almanac_month(request):
         "month": f"{start:%Y-%m}", "title": f"{calendar.month_name[m]} {y}",
         "first_weekday": start.weekday(),  # Monday = 0
         "today": today.isoformat(), "location_set": _location() is not None,
-        "days": days, "can_edit": is_staff(request),
+        "days": days, "can_edit": can_edit(request),
     })
 
 
@@ -179,7 +179,7 @@ def almanac_day(request, day):
         "sun": sun, "moon": _moon(d), "location_set": _location() is not None,
         "events": [_event_json(e, full=True) for e in _events_between(d, nxt).get(d, [])],
         "posts": [post_summary(p) for p in _posts_between(request, d, nxt).get(d, [])],
-        "can_edit": is_staff(request),
+        "can_edit": can_edit(request),
     })
 
 
@@ -204,7 +204,7 @@ def almanac_events(request):
     if request.method == "GET":
         return JsonResponse({"events": [_event_json(e, full=True) for e in AlmanacEvent.objects.all()],
                              "kinds": AlmanacEvent.KIND_CHOICES})
-    denied = staff_only(request)
+    denied = editor_only(request)
     if denied:
         return denied
     data = json_body(request)
@@ -224,7 +224,7 @@ def almanac_event(request, event_id):
         return JsonResponse({"error": "Not found"}, status=404)
     if request.method == "GET":
         return JsonResponse(_event_json(e, full=True))
-    denied = staff_only(request)
+    denied = editor_only(request)
     if denied:
         return denied
     if request.method == "DELETE":

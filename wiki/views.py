@@ -1,7 +1,8 @@
 from django.db.models import Q
 from django.http import JsonResponse
 
-from config.api import bad_request, is_staff, json_body, staff_only
+from accounts.views import author_info
+from config.api import bad_request, can_edit, editor_only, json_body
 from config.markup import excerpt, render, wiki_links, wiki_slug
 
 from .models import WikiPage, WikiRevision
@@ -17,7 +18,7 @@ def wiki_list(request):
     q = (request.GET.get("q") or "").strip()
     if q:
         pages = pages.filter(Q(title__icontains=q) | Q(body__icontains=q))
-    return JsonResponse({"pages": [_page_summary(p) for p in pages], "can_edit": is_staff(request)})
+    return JsonResponse({"pages": [_page_summary(p) for p in pages], "can_edit": can_edit(request)})
 
 
 def _backlinks(slug):
@@ -40,18 +41,19 @@ def wiki_page(request, slug):
         if not page:
             return JsonResponse({"exists": False, "slug": slug,
                                  "title": slug.replace("-", " ").title(),
-                                 "can_edit": is_staff(request)}, status=404)
+                                 "can_edit": can_edit(request)}, status=404)
         backlink_pages, backlink_posts = _backlinks(slug)
         return JsonResponse({
             "exists": True, "slug": page.slug, "title": page.title,
             "body": page.body, "html": render(page.body),
             "updated_at": page.updated_at.isoformat(),
+            "updated_by": author_info(page.updated_by),
             "revisions": page.revisions.count(),
             "backlinks": backlink_pages, "posts": backlink_posts,
-            "can_edit": is_staff(request),
+            "can_edit": can_edit(request),
         })
 
-    denied = staff_only(request)
+    denied = editor_only(request)
     if denied:
         return denied
 
@@ -88,7 +90,7 @@ def wiki_history(request, slug):
         return JsonResponse({"error": "Not found"}, status=404)
     return JsonResponse({"slug": slug, "revisions": [
         {"id": r.id, "title": r.title, "created_at": r.created_at.isoformat(),
-         "by": r.created_by.get_username() if r.created_by else None,
-         "body": r.body if is_staff(request) else None}
+         "by": (author_info(r.created_by) or {}).get("name"),
+         "body": r.body if can_edit(request) else None}
         for r in page.revisions.all()[:50]
     ]})

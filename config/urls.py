@@ -18,7 +18,8 @@ from django.conf import settings
 from django.contrib import admin
 from django.urls import path, re_path
 from django.views.static import serve
-from config.views import home, me, preview
+from config.views import home, preview
+from accounts.views import me, change_password, login_view, logout_view, people, person_detail
 from sensors.views import get_sensor_list, configure_sensor, mock_sensor_readings, get_sensor_history, climate
 from network.views import network_config, wifi_survey
 from wiki.views import wiki_list, wiki_page, wiki_history
@@ -42,6 +43,11 @@ urlpatterns = [
     path('', home),
     path('api/climate/', climate),
     path('api/me/', me),
+    path('api/me/password/', change_password),
+    path('api/login/', login_view),
+    path('api/logout/', logout_view),
+    path('api/people/', people),
+    path('api/people/<int:user_id>/', person_detail),
     path('admin/', admin.site.urls),
     path('api/sensors/', get_sensor_list),
     path('api/sensors/configure/', configure_sensor),

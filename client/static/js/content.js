@@ -309,8 +309,8 @@
             <a href="#/blog/${p.id}" class="card overflow-hidden block hover:shadow-lg transition">
                 ${p.cover ? `<img src="${esc(p.cover)}" alt="" loading="lazy" class="w-full h-44 object-cover">` : ''}
                 <div class="p-4">
-                    <div class="text-xs text-gray-500">${dayLabel(p.date, { weekday: 'short', month: 'short', day: 'numeric', year: 'numeric' })}
-                        ${p.published ? '' : ' · <span class="text-orange-700">draft</span>'}</div>
+                    <div class="text-xs text-gray-500 flex flex-wrap items-center gap-x-2">${dayLabel(p.date, { weekday: 'short', month: 'short', day: 'numeric', year: 'numeric' })}
+                        ${p.published ? '' : ' · <span class="text-orange-700">draft</span>'}${p.author ? ' · ' + byLine(p.author) : ''}</div>
                     <h3 class="text-lg font-bold">${esc(p.title)}</h3>
                     <p class="text-sm text-gray-600 mt-1">${esc(p.excerpt)}</p>
                 </div>
@@ -348,6 +348,7 @@
                         <a href="#/almanac/${p.date}" class="text-sm text-green-700 underline">${dayLabel(p.date)}</a>
                         ${p.published ? '' : ' <span class="text-xs text-orange-700">(draft)</span>'}
                         <h3 class="text-3xl font-bold mt-1">${esc(p.title)}</h3>
+                        ${p.author ? `<div class="text-sm text-gray-600 mt-1">by ${byLine(p.author)}</div>` : ''}
                     </div>
                     ${p.can_edit ? '<button id="post-edit" class="px-4 py-2 rounded border border-green-600 text-green-700 hover:bg-green-50">Edit</button>' : ''}
                 </div>
@@ -440,7 +441,7 @@
                 <div class="prose mt-4">${p.html || '<p class="text-gray-500">(empty page)</p>'}</div>
                 <div class="mt-6 pt-4 border-t text-sm text-gray-600 space-y-1">
                     ${links.length ? `<div>Linked from: ${links.join(' · ')}</div>` : ''}
-                    <div>Last edited ${new Date(p.updated_at).toLocaleString()}${p.revisions ? ` · <a href="#/wiki/${esc(p.slug)}/history" class="underline">${p.revisions} earlier version(s)</a>` : ''}</div>
+                    <div>Last edited ${new Date(p.updated_at).toLocaleString()}${p.updated_by ? ' by ' + byLine(p.updated_by) : ''}${p.revisions ? ` · <a href="#/wiki/${esc(p.slug)}/history" class="underline">${p.revisions} earlier version(s)</a>` : ''}</div>
                 </div>
             </article>`;
         const e = $('wiki-edit');
@@ -514,17 +515,175 @@
                 showSection('config');
                 loadNetworkConfig();
                 break;
+            case 'people':
+                showSection('people');
+                showPeople();
+                break;
             default:
                 showSection('home');
                 loadClimate();
         }
     }
 
-    // Staging copy (pve): say so on every page, with how fresh the real data is.
-    async function stagingBanner() {
+
+    // ------------------------------------------------------------------ people & logins
+
+    let me = { authenticated: false };
+    const avatarImg = (url, cls = 'w-6 h-6') => url ? `<img src="${esc(url)}" alt="" class="${cls} rounded-full inline-block align-middle">` : '';
+    const byLine = a => a ? `<span class="inline-flex items-center gap-1">${avatarImg(a.avatar_url, 'w-5 h-5')}${esc(a.name)}</span>` : '';
+
+    function renderNavUser() {
+        const box = $('nav-user');
+        if (me.authenticated && me.user) {
+            box.innerHTML = `<button id="nav-me" type="button" title="You" class="flex items-center gap-2 rounded-full bg-white/15 hover:bg-white/25 pl-1 pr-3 py-1">
+                ${avatarImg(me.user.avatar_url, 'w-8 h-8 bg-white')}<span class="text-sm font-semibold max-w-[8rem] truncate">${esc(me.user.display_name)}</span></button>`;
+            $('nav-me').addEventListener('click', () => openAccount());
+        } else {
+            box.innerHTML = `<button id="nav-login" type="button" class="text-sm font-semibold rounded-full bg-white/15 hover:bg-white/25 px-4 py-1.5">Log in</button>`;
+            $('nav-login').addEventListener('click', () => openLogin());
+        }
+        $('nav-people').classList.toggle('hidden', !me.is_staff);
+    }
+
+    async function refreshMe() {
         const r = await api('/api/me/');
-        const st = r.ok && r.data && r.data.staging;
-        if (!st) return;
+        if (r.ok) me = r.data;
+        renderNavUser();
+        stagingBanner();
+        return me;
+    }
+
+    function openLogin() {
+        $('login-msg').textContent = '';
+        $('login-pass').value = '';
+        $('login-dlg').classList.remove('hidden');
+        $('login-user').focus();
+    }
+    window.openLogin = openLogin;  // used by index.html (Config page)
+    $('login-cancel').addEventListener('click', () => $('login-dlg').classList.add('hidden'));
+    $('login-form').addEventListener('submit', async ev => {
+        ev.preventDefault();
+        const r = await api('/api/login/', { method: 'POST', body: { username: $('login-user').value, password: $('login-pass').value } });
+        if (!r.ok) { $('login-msg').textContent = r.data.message || 'Could not log in.'; return; }
+        me = r.data;
+        $('login-dlg').classList.add('hidden');
+        renderNavUser();
+        if (me.user.must_change_password) openAccount(); else route();
+    });
+
+    let pickedAvatar = null;
+    function openAccount() {
+        if (!me.user) return;
+        const welcome = me.user.must_change_password;
+        pickedAvatar = me.user.avatar;
+        $('acct-heading').textContent = welcome ? `Hello, ${me.user.display_name}!` : 'You';
+        $('acct-welcome').classList.toggle('hidden', !welcome);
+        $('acct-pw-legend').textContent = welcome ? 'Choose your password' : 'Change password (optional)';
+        $('acct-cur').placeholder = welcome ? 'Temporary password you were given' : 'Current password';
+        $('acct-cancel').classList.toggle('hidden', welcome);
+        $('acct-name').value = me.user.display_name;
+        ['acct-cur', 'acct-new', 'acct-new2'].forEach(id => { $(id).value = ''; });
+        $('acct-msg').textContent = '';
+        $('acct-avatars').innerHTML = (me.avatars || []).map(a => `
+            <button type="button" data-avatar="${esc(a.slug)}" title="${esc(a.name)}" class="avatar-pick ${a.slug === pickedAvatar ? 'selected' : ''}">
+                <img src="${esc(a.url)}" alt="${esc(a.name)}" class="w-full rounded-full"></button>`).join('');
+        $('acct-avatars').querySelectorAll('[data-avatar]').forEach(b => b.addEventListener('click', () => {
+            pickedAvatar = b.dataset.avatar;
+            $('acct-avatars').querySelectorAll('.avatar-pick').forEach(x => x.classList.toggle('selected', x === b));
+        }));
+        $('account-dlg').classList.remove('hidden');
+    }
+    $('acct-cancel').addEventListener('click', () => $('account-dlg').classList.add('hidden'));
+    $('acct-logout').addEventListener('click', async () => {
+        const r = await api('/api/logout/', { method: 'POST' });
+        if (r.ok) me = r.data;
+        $('account-dlg').classList.add('hidden');
+        renderNavUser();
+        route();
+    });
+    $('account-form').addEventListener('submit', async ev => {
+        ev.preventDefault();
+        const msg = $('acct-msg');
+        const cur = $('acct-cur').value, nw = $('acct-new').value, nw2 = $('acct-new2').value;
+        const welcome = me.user.must_change_password;
+        if ((welcome || nw || cur) && !(cur && nw)) { msg.textContent = 'Fill in the current and new password.'; return; }
+        if (nw !== nw2) { msg.textContent = "The two new passwords don't match."; return; }
+        let r = await api('/api/me/', { method: 'PUT', body: { display_name: $('acct-name').value, avatar: pickedAvatar } });
+        if (!r.ok) { msg.textContent = r.data.message || 'Could not save.'; return; }
+        me = r.data;
+        if (nw) {
+            r = await api('/api/me/password/', { method: 'POST', body: { current: cur, new: nw } });
+            if (!r.ok) { msg.textContent = r.data.message || 'Could not change the password.'; renderNavUser(); return; }
+            me = r.data;
+        }
+        $('account-dlg').classList.add('hidden');
+        renderNavUser();
+        route();
+    });
+
+    async function showPeople() {
+        const view = $('people-view');
+        const r = await api('/api/people/');
+        if (!r.ok) {
+            view.innerHTML = `<div class="card p-6 text-gray-700">Only admins can manage people.
+                ${me.authenticated ? '' : '<button type="button" class="text-green-700 font-semibold underline" onclick="openLogin()">Log in</button>'}</div>`;
+            return;
+        }
+        const rows = r.data.people.map(p => `
+            <div class="flex flex-wrap items-center gap-3 p-4 border-b last:border-0 ${p.active ? '' : 'opacity-50'}">
+                ${avatarImg(p.avatar_url, 'w-12 h-12')}
+                <div class="flex-1 min-w-[10rem]">
+                    <div class="font-semibold">${esc(p.display_name)} <span class="text-xs text-gray-500">@${esc(p.username)}</span></div>
+                    <div class="text-xs text-gray-600">${p.role === 'admin' ? '🔑 Admin' : '🌱 Gardener'}${p.active ? '' : ' · disabled'}
+                        · ${p.must_change_password ? 'hasn\'t logged in with their own password yet' : (p.last_login ? 'last seen ' + new Date(p.last_login).toLocaleDateString() : 'never logged in')}</div>
+                </div>
+                ${p.id === me.user.id ? '<span class="text-xs text-gray-500">(you)</span>' : `
+                <div class="flex flex-wrap gap-2 text-sm">
+                    <button data-pid="${p.id}" data-act="reset" class="px-3 py-1 rounded border border-gray-300 hover:bg-gray-50">New temporary password</button>
+                    <button data-pid="${p.id}" data-act="role" data-val="${p.role === 'admin' ? 'gardener' : 'admin'}" class="px-3 py-1 rounded border border-gray-300 hover:bg-gray-50">Make ${p.role === 'admin' ? 'gardener' : 'admin'}</button>
+                    <button data-pid="${p.id}" data-act="active" data-val="${p.active ? '' : '1'}" class="px-3 py-1 rounded border ${p.active ? 'border-red-300 text-red-700 hover:bg-red-50' : 'border-green-600 text-green-700 hover:bg-green-50'}">${p.active ? 'Disable' : 'Enable'}</button>
+                </div>`}
+            </div>`).join('');
+        view.innerHTML = `
+            <div id="people-secret"></div>
+            <form id="people-add" class="card p-4 mb-6 flex flex-wrap gap-2 items-end">
+                <label class="text-sm">Login name<br><input name="username" required pattern="[a-zA-Z0-9][a-zA-Z0-9_.\\-]{1,29}" autocapitalize="none" placeholder="e.g. corell" class="border border-gray-300 rounded-md p-2"></label>
+                <label class="text-sm">Name shown<br><input name="display_name" placeholder="e.g. Corell" class="border border-gray-300 rounded-md p-2"></label>
+                <label class="text-sm">Role<br><select name="role" class="border border-gray-300 rounded-md p-2"><option value="gardener">Gardener</option><option value="admin">Admin</option></select></label>
+                <button class="px-4 py-2 rounded bg-green-600 text-white font-semibold hover:bg-green-700">+ Add person</button>
+                <p id="people-msg" class="w-full text-sm text-red-700"></p>
+            </form>
+            <div class="card">${rows}</div>`;
+        const showSecret = (p, pw) => {
+            $('people-secret').innerHTML = `<div class="card p-4 mb-6 border-2 border-amber-300 bg-amber-50">
+                <div class="font-semibold">Temporary password for ${esc(p.display_name)} (login <b>${esc(p.username)}</b>):</div>
+                <div class="text-2xl font-mono my-2 select-all">${esc(pw)}</div>
+                <div class="text-sm text-gray-700">Give it to them in person or by text. It's shown only this once; they'll choose their own password and avatar when they first log in.</div></div>`;
+            window.scrollTo(0, 0);
+        };
+        $('people-add').addEventListener('submit', async ev => {
+            ev.preventDefault();
+            const f = new FormData(ev.target);
+            const r2 = await api('/api/people/', { method: 'POST', body: Object.fromEntries(f) });
+            if (!r2.ok) { $('people-msg').textContent = r2.data.message || 'Could not add.'; return; }
+            await showPeople();
+            showSecret(r2.data.person, r2.data.temporary_password);
+        });
+        view.querySelectorAll('[data-act]').forEach(b => b.addEventListener('click', async () => {
+            const body = b.dataset.act === 'reset' ? { reset_password: true }
+                : b.dataset.act === 'role' ? { role: b.dataset.val } : { active: !!b.dataset.val };
+            if (b.dataset.act === 'reset' && !confirm('Give this person a new temporary password? Their old one stops working.')) return;
+            const r2 = await api(`/api/people/${b.dataset.pid}/`, { method: 'PUT', body });
+            if (!r2.ok) { alert(r2.data.message || 'Could not change that.'); return; }
+            await showPeople();
+            if (r2.data.temporary_password) showSecret(r2.data.person, r2.data.temporary_password);
+        }));
+    }
+
+    // Staging copy (pve): say so on every page, with how fresh the real data is.
+    function stagingBanner() {
+        const st = me.staging;
+        if (!st || !$('staging-banner').classList.contains('hidden')) return;
         const snap = st.snapshot;
         const el = document.getElementById('staging-banner');
         el.innerHTML = '<b>STAGING COPY</b>, not the greenhouse. ' + (snap
@@ -532,10 +691,10 @@
               ` (from ${escapeHtml(snap.source || 'the Pi')}); readings after that are simulated.`
             : 'All sensor readings are simulated; no data has been copied from the Pi yet.');
         el.classList.remove('hidden');
-        document.title = '[staging] ' + document.title;
+        if (!document.title.startsWith('[staging]')) document.title = '[staging] ' + document.title;
     }
 
     window.addEventListener('hashchange', route);
     route();
-    stagingBanner();
+    refreshMe();
 })();

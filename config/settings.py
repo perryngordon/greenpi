@@ -60,6 +60,7 @@ INSTALLED_APPS = [
     'wiki',
     'blog',
     'almanac',
+    'accounts',
 ]
 
 MIDDLEWARE = [
@@ -115,6 +116,14 @@ DATABASES = {
 
 # Password validation
 # https://docs.djangoproject.com/en/5.2/ref/settings/#auth-password-validators
+
+# Shared by all gunicorn workers (login attempt counters).
+CACHES = {
+    'default': {
+        'BACKEND': 'django.core.cache.backends.filebased.FileBasedCache',
+        'LOCATION': str(DATA_DIR / 'cache'),
+    }
+}
 
 AUTH_PASSWORD_VALIDATORS = [
     {

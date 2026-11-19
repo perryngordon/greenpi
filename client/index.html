@@ -29,19 +29,23 @@
         .prose pre { background: #f3f4f6; padding: .75rem; border-radius: .5rem; overflow-x: auto; }
         .prose table { border-collapse: collapse; margin: .75rem 0; }
         .prose th, .prose td { border: 1px solid #e5e7eb; padding: .25rem .5rem; }
+        .avatar-pick { border: 3px solid transparent; border-radius: 9999px; padding: 2px; }
+        .avatar-pick.selected { border-color: #16a34a; }
     </style>
 </head>
 <body class="font-sans text-gray-900">
     <nav class="bg-green-600 px-4 py-3 text-white flex flex-wrap md:flex-nowrap justify-between items-center gap-x-4 gap-y-1 shadow-lg sticky top-0 z-50">
-        <h1 class="text-2xl font-bold whitespace-nowrap"><a href="#/climate">🌿 Greenhouse</a></h1>
+        <h1 class="order-1 text-2xl font-bold whitespace-nowrap"><a href="#/climate">🌿 Greenhouse</a></h1>
+        <div id="nav-user" class="order-2 md:order-3 ml-auto md:ml-0 flex items-center"></div>
         <!-- One row on phones: scrolls sideways instead of wrapping into a tall sticky header -->
-        <div class="flex gap-1 overflow-x-auto whitespace-nowrap w-full md:w-auto -mx-1 px-1">
+        <div class="order-3 md:order-2 md:ml-auto flex gap-1 overflow-x-auto whitespace-nowrap w-full md:w-auto -mx-1 px-1">
             <a href="#/climate" class="nav-link px-3 py-1">Climate</a>
             <a href="#/almanac" class="nav-link px-3 py-1">Almanac</a>
             <a href="#/blog" class="nav-link px-3 py-1">Blog</a>
             <a href="#/wiki" class="nav-link px-3 py-1">Wiki</a>
             <a href="#/sensors" class="nav-link px-3 py-1">Sensors</a>
             <a href="#/config" class="nav-link px-3 py-1">Config</a>
+            <a href="#/people" id="nav-people" class="nav-link px-3 py-1 hidden">People</a>
         </div>
     </nav>
     <div id="staging-banner" class="hidden bg-amber-300 text-amber-950 text-sm px-4 py-2"></div>
@@ -150,6 +154,15 @@
             <div id="blog-view"></div>
         </section>
 
+        <section id="people" class="section">
+            <header class="mb-4">
+                <h2 class="text-3xl font-semibold text-green-800">People</h2>
+                <p class="text-gray-600 text-sm">Everyone can read the site. <b>Gardeners</b> can write the journal, wiki and almanac and add photos;
+                    <b>admins</b> can also change network and sensor settings and manage people.</p>
+            </header>
+            <div id="people-view"></div>
+        </section>
+
         <section id="wiki" class="section">
             <header class="mb-4 flex items-center justify-between flex-wrap gap-3">
                 <div>
@@ -171,8 +184,8 @@
                 <p class="text-gray-600">Manage network and hardware settings.</p>
             </header>
             <div id="config-login" class="hidden card p-6 mb-6 border-2 border-yellow-200">
-                <p class="text-gray-700">Network settings are admin-only.
-                    <a href="/admin/login/?next=/" class="text-green-700 font-semibold underline">Log in</a>, then come back to this page.</p>
+                <p class="text-gray-700">Network settings are for admins.
+                    <button type="button" onclick="openLogin()" class="text-green-700 font-semibold underline">Log in</button> with an admin account to change them.</p>
             </div>
             <div id="config-panels" class="grid grid-cols-1 lg:grid-cols-2 gap-8">
                 <!-- AP Mode Panel -->
@@ -256,6 +269,48 @@
     </main>
 
     <!-- Shared editor overlay for blog posts, wiki pages and almanac events -->
+    <div id="login-dlg" class="hidden fixed inset-0 z-[70] bg-black/40 overflow-y-auto">
+        <form id="login-form" class="bg-white max-w-sm mx-auto mt-16 md:mt-24 rounded-xl shadow-xl p-6 space-y-3">
+            <h3 class="text-xl font-bold text-green-800">🌿 Log in</h3>
+            <input id="login-user" type="text" autocomplete="username" autocapitalize="none" placeholder="Login name" class="w-full border border-gray-300 rounded-md p-2">
+            <input id="login-pass" type="password" autocomplete="current-password" placeholder="Password" class="w-full border border-gray-300 rounded-md p-2">
+            <p id="login-msg" class="text-sm text-red-700 min-h-[1.25rem]"></p>
+            <div class="flex justify-end gap-2">
+                <button type="button" id="login-cancel" class="px-4 py-2 rounded border border-gray-300 hover:bg-gray-50">Cancel</button>
+                <button type="submit" class="px-5 py-2 rounded bg-green-600 text-white font-semibold hover:bg-green-700">Log in</button>
+            </div>
+            <p class="text-xs text-gray-500">No account? Ask the greenhouse admin to add you.</p>
+        </form>
+    </div>
+
+    <div id="account-dlg" class="hidden fixed inset-0 z-[70] bg-black/40 overflow-y-auto">
+        <form id="account-form" class="bg-white max-w-lg mx-auto my-4 md:my-12 rounded-xl shadow-xl p-5 md:p-6 space-y-4">
+            <h3 id="acct-heading" class="text-xl font-bold text-green-800">You</h3>
+            <p id="acct-welcome" class="hidden text-sm text-gray-700 bg-green-50 border border-green-200 rounded p-3">
+                Welcome! Pick an avatar, check your name, and choose your own password to replace the temporary one.</p>
+            <div>
+                <div class="text-sm font-semibold mb-2">Avatar</div>
+                <div id="acct-avatars" class="grid grid-cols-4 sm:grid-cols-8 gap-2"></div>
+            </div>
+            <label class="block text-sm font-semibold">Your name (shown on posts)
+                <input id="acct-name" type="text" maxlength="60" class="mt-1 w-full border border-gray-300 rounded-md p-2 font-normal"></label>
+            <fieldset class="border rounded-md p-3 space-y-2">
+                <legend id="acct-pw-legend" class="text-sm font-semibold px-1">Change password (optional)</legend>
+                <input id="acct-cur" type="password" autocomplete="current-password" placeholder="Current password" class="w-full border border-gray-300 rounded-md p-2">
+                <input id="acct-new" type="password" autocomplete="new-password" placeholder="New password (at least 8 characters)" class="w-full border border-gray-300 rounded-md p-2">
+                <input id="acct-new2" type="password" autocomplete="new-password" placeholder="New password again" class="w-full border border-gray-300 rounded-md p-2">
+            </fieldset>
+            <p id="acct-msg" class="text-sm text-red-700 min-h-[1.25rem]"></p>
+            <div class="flex flex-wrap justify-between gap-2">
+                <button type="button" id="acct-logout" class="px-4 py-2 rounded border border-gray-300 hover:bg-gray-50">Log out</button>
+                <div class="flex gap-2 ml-auto">
+                    <button type="button" id="acct-cancel" class="px-4 py-2 rounded border border-gray-300 hover:bg-gray-50">Close</button>
+                    <button type="submit" class="px-5 py-2 rounded bg-green-600 text-white font-semibold hover:bg-green-700">Save</button>
+                </div>
+            </div>
+        </form>
+    </div>
+
     <div id="editor" class="hidden fixed inset-0 z-[60] bg-black/40 overflow-y-auto">
         <div class="bg-white max-w-3xl mx-auto my-4 md:my-10 rounded-xl shadow-xl p-4 md:p-6">
             <h3 id="ed-heading" class="text-xl font-bold mb-4">Edit</h3>

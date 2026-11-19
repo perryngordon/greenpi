@@ -27,12 +27,8 @@ DEFAULT_DHCP_RANGE = "10.42.0.100-10.42.0.200"
 
 
 def _staff_required(request):
-    if not (request.user.is_authenticated and request.user.is_staff):
-        return JsonResponse(
-            {"status": "error", "message": "Log in at /admin/ to change network settings."},
-            status=403,
-        )
-    return None
+    from config.api import staff_only
+    return staff_only(request)
 
 
 def _ap_ip(config):

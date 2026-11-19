@@ -7,7 +7,7 @@ from django.db.models import Q
 from django.http import JsonResponse
 from django.utils import timezone
 
-from config.api import bad_request, is_staff, json_body, staff_only
+from config.api import bad_request, can_edit, editor_only, json_body
 from config.markup import excerpt, render
 
 from .models import Photo, Post
@@ -20,18 +20,20 @@ FIRST_IMG = re.compile(r"!\[[^\]]*\]\(([^)\s]+)")
 
 def _visible_posts(request):
     posts = Post.objects.all()
-    return posts if is_staff(request) else posts.filter(published=True)
+    return posts if can_edit(request) else posts.filter(published=True)
 
 
 def post_summary(p):
     m = FIRST_IMG.search(p.body or "")
+    from accounts.views import author_info
     return {"id": p.id, "title": p.title, "date": p.date.isoformat(), "published": p.published,
-            "excerpt": excerpt(p.body), "cover": m.group(1) if m else None}
+            "excerpt": excerpt(p.body), "cover": m.group(1) if m else None,
+            "author": author_info(p.author)}
 
 
 def _post_detail(p, request):
     return {**post_summary(p), "body": p.body, "html": render(p.body),
-            "updated_at": p.updated_at.isoformat(), "can_edit": is_staff(request)}
+            "updated_at": p.updated_at.isoformat(), "can_edit": can_edit(request)}
 
 
 def _apply(post, data):
@@ -50,7 +52,7 @@ def _apply(post, data):
 
 def blog_list(request):
     if request.method == "POST":
-        denied = staff_only(request)
+        denied = editor_only(request)
         if denied:
             return denied
         data = json_body(request)
@@ -75,7 +77,7 @@ def blog_list(request):
     chunk = posts[(page - 1) * PAGE_SIZE: page * PAGE_SIZE]
     return JsonResponse({"posts": [post_summary(p) for p in chunk], "page": page,
                          "pages": max(1, -(-total // PAGE_SIZE)), "total": total,
-                         "can_edit": is_staff(request)})
+                         "can_edit": can_edit(request)})
 
 
 def blog_post(request, post_id):
@@ -85,7 +87,7 @@ def blog_post(request, post_id):
     if request.method == "GET":
         return JsonResponse(_post_detail(post, request))
 
-    denied = staff_only(request)
+    denied = editor_only(request)
     if denied:
         return denied
     if request.method == "DELETE":
@@ -113,7 +115,7 @@ def _exif_taken_at(img):
 
 def photo_upload(request):
     """Multipart upload (field "photo"): resize, save to the data drive, return its URL."""
-    denied = staff_only(request)
+    denied = editor_only(request)
     if denied:
         return denied
     if request.method != "POST":

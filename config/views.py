@@ -11,26 +11,15 @@ def home(request):
 
 
 def preview(request):
-    """Render Markdown exactly as the wiki/blog will (editor preview). Staff only."""
-    from config.api import json_body, staff_only
+    """Render Markdown exactly as the wiki/blog will (editor preview). Editors only."""
+    from config.api import editor_only, json_body
     from config.markup import render
 
-    denied = staff_only(request)
+    denied = editor_only(request)
     if denied:
         return denied
     data = json_body(request) or {}
     return JsonResponse({"html": render(data.get("body") or "")})
-
-
-def me(request):
-    """Who is viewing: lets the UI show/hide admin-only controls."""
-    u = request.user
-    return JsonResponse({
-        "authenticated": u.is_authenticated,
-        "is_staff": bool(u.is_authenticated and u.is_staff),
-        "username": u.get_username() if u.is_authenticated else None,
-        "staging": staging_info(),
-    })
 
 
 def staging_info():

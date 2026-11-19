@@ -58,8 +58,10 @@ def mock_sensor_list(request):
     return JsonResponse({"sensors": get_sensor_list(request)})
 
 def configure_sensor(request):
-    if not (request.user.is_authenticated and request.user.is_staff):
-        return JsonResponse({"status": "error", "message": "Log in at /admin/ to configure sensors."}, status=403)
+    from config.api import staff_only
+    denied = staff_only(request)
+    if denied:
+        return denied
     if request.method == "POST":
         data = json.loads(request.body)
         sensor_id = data.get("id")
