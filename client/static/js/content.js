@@ -647,8 +647,8 @@
         view.innerHTML = `
             <div id="people-secret"></div>
             <form id="people-add" class="card p-4 mb-6 flex flex-wrap gap-2 items-end">
-                <label class="text-sm">Login name<br><input name="username" required pattern="[a-zA-Z0-9][a-zA-Z0-9_.\\-]{1,29}" autocapitalize="none" placeholder="e.g. corell" class="border border-gray-300 rounded-md p-2"></label>
-                <label class="text-sm">Name shown<br><input name="display_name" placeholder="e.g. Corell" class="border border-gray-300 rounded-md p-2"></label>
+                <label class="text-sm">Login name<br><input name="username" required pattern="[a-zA-Z0-9][a-zA-Z0-9_.\\-]{1,29}" autocapitalize="none" placeholder="e.g. alice" class="border border-gray-300 rounded-md p-2"></label>
+                <label class="text-sm">Name shown<br><input name="display_name" placeholder="e.g. Alice" class="border border-gray-300 rounded-md p-2"></label>
                 <label class="text-sm">Role<br><select name="role" class="border border-gray-300 rounded-md p-2"><option value="gardener">Gardener</option><option value="admin">Admin</option></select></label>
                 <button class="px-4 py-2 rounded bg-green-600 text-white font-semibold hover:bg-green-700">+ Add person</button>
                 <p id="people-msg" class="w-full text-sm text-red-700"></p>

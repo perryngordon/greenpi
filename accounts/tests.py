@@ -21,9 +21,9 @@ class PeopleTests(TestCase):
     def login(self, username, password, client=None):
         return self.post("/api/login/", {"username": username, "password": password}, client)
 
-    def add_person(self, username="corell", role="gardener"):
+    def add_person(self, username="alice", role="gardener"):
         self.login("perryn", "admin-pass-123")
-        r = self.post("/api/people/", {"username": username, "display_name": "Corell", "role": role})
+        r = self.post("/api/people/", {"username": username, "display_name": "Alice", "role": role})
         self.assertEqual(r.status_code, 200, r.content)
         self.client.logout()
         return r.json()
@@ -50,7 +50,7 @@ class PeopleTests(TestCase):
         made = self.add_person()
         temp = made["temporary_password"]
         self.assertTrue(made["person"]["must_change_password"])
-        self.assertEqual(self.login("corell", temp).status_code, 200)
+        self.assertEqual(self.login("alice", temp).status_code, 200)
         me = self.client.get("/api/me/").json()
         self.assertFalse(me["can_edit"])
         self.assertEqual(self.post("/api/blog/", {"title": "Hi"}).status_code, 403)
@@ -61,16 +61,16 @@ class PeopleTests(TestCase):
         self.assertEqual(r.status_code, 200, r.content)
         self.assertTrue(r.json()["can_edit"])
 
-        self.put("/api/me/", {"avatar": "ladybug", "display_name": "Corell P."})
+        self.put("/api/me/", {"avatar": "ladybug", "display_name": "Alice P."})
         r = self.post("/api/blog/", {"title": "First frost", "body": "Brr"})
         self.assertEqual(r.status_code, 201, r.content)
         post = self.client.get(f"/api/blog/{r.json()['id']}/").json()
-        self.assertEqual(post["author"]["name"], "Corell P.")
+        self.assertEqual(post["author"]["name"], "Alice P.")
         self.assertEqual(post["author"]["avatar_url"], "/static/avatars/ladybug.svg")
 
     def test_gardener_cannot_touch_admin_things(self):
         temp = self.add_person()["temporary_password"]
-        self.login("corell", temp)
+        self.login("alice", temp)
         self.post("/api/me/password/", {"current": temp, "new": "tomatoes-in-ward-2026"})
         self.assertEqual(self.client.get("/api/network/").status_code, 403)
         self.assertEqual(self.client.get("/api/people/").status_code, 403)
@@ -89,8 +89,8 @@ class PeopleTests(TestCase):
         r = self.put(f"/api/people/{self.admin.id}/", {"role": "gardener"})
         self.assertEqual(r.status_code, 400)
         self.client.logout()
-        self.assertEqual(self.login("corell", made["temporary_password"]).status_code, 400)
-        self.assertEqual(self.login("corell", new_temp).status_code, 400)  # disabled
+        self.assertEqual(self.login("alice", made["temporary_password"]).status_code, 400)
+        self.assertEqual(self.login("alice", new_temp).status_code, 400)  # disabled
 
     def test_duplicate_and_bad_usernames(self):
         self.login("perryn", "admin-pass-123")

@@ -182,8 +182,8 @@ class StagingTests(TestCase):
             (Path(tmp) / "surveys").mkdir()
             (Path(tmp) / "surveys" / "survey-20261118-120000.json").write_text(json.dumps(
                 {"interface": "wlsta0", "scanned_at": "2026-11-18T12:00:00-07:00",
-                 "networks": [{"ssid": "Corell"}]}))
+                 "networks": [{"ssid": "NeighbourWiFi"}]}))
             s = self.client.get("/api/network/survey/").json()
-            self.assertEqual(s["networks"][0]["ssid"], "Corell")
+            self.assertEqual(s["networks"][0]["ssid"], "NeighbourWiFi")
             self.assertIsNotNone(self.client.get("/api/me/").json()["staging"])
         self.assertIsNone(self.client.get("/api/me/").json()["staging"])
