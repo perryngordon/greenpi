@@ -4,8 +4,9 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Greenhouse Dashboard</title>
-    <script src="https://cdn.tailwindcss.com"></script>
-    <script src="https://cdn.jsdelivr.net/npm/chart.js@4"></script>
+    <!-- Served locally so the page works on the hotspot with no internet. -->
+    <script src="/static/vendor/tailwind-3.4.16.js"></script>
+    <script src="/static/vendor/chart-4.4.7.umd.min.js"></script>
     <style>
         body { background-color: #f0fdf4; scroll-behavior: smooth; }
         .card { background: white; border-radius: 1rem; box-shadow: 0 4px 6px -1px rgb(0 0 0 / 0.1); }
@@ -13,35 +14,75 @@
         .nav-link:hover { color: #f0fdf4; background: #16a34a; border-radius: 0.5rem; }
         .section { display: none; }
         .section.active { display: block; }
+        /* Rendered Markdown (wiki, blog, almanac notes) */
+        .prose h1 { font-size: 1.6rem; font-weight: 700; margin: 1rem 0 .5rem; }
+        .prose h2 { font-size: 1.35rem; font-weight: 700; margin: 1rem 0 .5rem; }
+        .prose h3 { font-size: 1.15rem; font-weight: 600; margin: .8rem 0 .4rem; }
+        .prose p { margin: .6rem 0; line-height: 1.6; }
+        .prose ul { list-style: disc; padding-left: 1.5rem; margin: .5rem 0; }
+        .prose ol { list-style: decimal; padding-left: 1.5rem; margin: .5rem 0; }
+        .prose a { color: #15803d; text-decoration: underline; }
+        .prose a.wikilink { text-decoration-style: dotted; }
+        .prose img { max-width: 100%; height: auto; border-radius: .5rem; margin: .75rem 0; }
+        .prose blockquote { border-left: 4px solid #bbf7d0; padding-left: 1rem; color: #4b5563; }
+        .prose code { background: #f3f4f6; padding: 0 .25rem; border-radius: .25rem; }
+        .prose pre { background: #f3f4f6; padding: .75rem; border-radius: .5rem; overflow-x: auto; }
+        .prose table { border-collapse: collapse; margin: .75rem 0; }
+        .prose th, .prose td { border: 1px solid #e5e7eb; padding: .25rem .5rem; }
+        .avatar-pick { border: 3px solid transparent; border-radius: 9999px; padding: 2px; }
+        .avatar-pick.selected { border-color: #16a34a; }
     </style>
 </head>
 <body class="font-sans text-gray-900">
-    <nav class="bg-green-600 p-4 text-white flex justify-between items-center shadow-lg sticky top-0 z-50">
-        <h1 class="text-2xl font-bold cursor-pointer" onclick="showSection('home')">🌿 Greenhouse</h1>
-        <div class="space-x-4">
-            <a href="javascript:void(0)" onclick="showSection('home')" class="nav-link px-3 py-1">Home</a>
-            <a href="javascript:void(0)" onclick="showSection('sensors')" class="nav-link px-3 py-1">Sensors</a>
-            <a href="javascript:void(0)" onclick="showSection('wiki')" class="nav-link px-3 py-1">Wiki</a>
-            <a href="javascript:void(0)" onclick="showSection('config')" class="nav-link px-3 py-1">Config</a>
+    <nav class="bg-green-600 px-4 py-3 text-white flex flex-wrap md:flex-nowrap justify-between items-center gap-x-4 gap-y-1 shadow-lg sticky top-0 z-50">
+        <h1 class="order-1 text-2xl font-bold whitespace-nowrap"><a href="#/climate">🌿 Greenhouse</a></h1>
+        <div id="nav-user" class="order-2 md:order-3 ml-auto md:ml-0 flex items-center"></div>
+        <!-- One row on phones: scrolls sideways instead of wrapping into a tall sticky header -->
+        <div class="order-3 md:order-2 md:ml-auto flex gap-1 overflow-x-auto whitespace-nowrap w-full md:w-auto -mx-1 px-1">
+            <a href="#/climate" class="nav-link px-3 py-1">Climate</a>
+            <a href="#/almanac" class="nav-link px-3 py-1">Almanac</a>
+            <a href="#/blog" class="nav-link px-3 py-1">Blog</a>
+            <a href="#/wiki" class="nav-link px-3 py-1">Wiki</a>
+            <a href="#/sensors" class="nav-link px-3 py-1">Sensors</a>
+            <a href="#/config" class="nav-link px-3 py-1">Config</a>
+            <a href="#/people" id="nav-people" class="nav-link px-3 py-1 hidden">People</a>
         </div>
     </nav>
+    <div id="staging-banner" class="hidden bg-amber-300 text-amber-950 text-sm px-4 py-2"></div>
 
     <main class="container mx-auto p-6">
         <!-- Home Section -->
         <section id="home" class="section active">
-            <header class="mb-8 text-center">
-                <h2 class="text-5xl font-bold text-green-800 mb-4">Welcome to your Greenhouse</h2>
-                <p class="text-xl text-gray-600">Your automated growing space is active and monitoring.</p>
+            <header class="mb-6 flex items-end justify-between flex-wrap gap-4">
+                <div>
+                    <h2 class="text-3xl font-semibold text-green-800">Greenhouse climate</h2>
+                    <p id="climate-updated" class="text-gray-500 text-sm">Loading…</p>
+                </div>
+                <div id="range-buttons" class="flex gap-1 bg-white rounded-lg p-1 shadow">
+                    <button data-hours="24"  class="range-btn px-3 py-1 rounded">24 h</button>
+                    <button data-hours="168" class="range-btn px-3 py-1 rounded">7 days</button>
+                    <button data-hours="720" class="range-btn px-3 py-1 rounded">30 days</button>
+                    <button data-hours="2160" class="range-btn px-3 py-1 rounded">Season</button>
+                </div>
             </header>
-            <div class="grid grid-cols-1 md:grid-cols-2 gap-8">
-                <div class="card p-8">
-                    <h3 class="text-2xl font-bold mb-4">Quick Stats</h3>
-                    <p class="text-gray-600">All systems nominal. Sensors are reporting steady data.</p>
-                </div>
-                <div class="card p-8">
-                    <h3 class="text-2xl font-bold mb-4">System Status</h3>
-                    <p class="text-green-600 font-bold">Online & Connected</p>
-                </div>
+
+            <div id="climate-now" class="grid grid-cols-2 md:grid-cols-4 gap-4 mb-6"></div>
+
+            <div class="card p-4 md:p-6 mb-6">
+                <h3 class="text-lg font-bold mb-2">Temperature &amp; humidity</h3>
+                <div class="relative" style="height: 320px;"><canvas id="climate-chart"></canvas></div>
+                <p id="climate-empty" class="hidden text-gray-500 text-sm mt-2">No readings stored yet; the sampler stores one per minute.</p>
+            </div>
+
+            <div class="card p-4 md:p-6">
+                <h3 class="text-lg font-bold mb-2">Daily highs &amp; lows</h3>
+                <div class="overflow-x-auto"><table class="w-full text-sm">
+                    <thead><tr class="text-left text-gray-500 border-b">
+                        <th class="py-2 pr-4">Day</th><th class="pr-4">Low °F</th><th class="pr-4">High °F</th>
+                        <th class="pr-4">Swing °F</th><th class="pr-4">Avg RH %</th><th>Readings</th>
+                    </tr></thead>
+                    <tbody id="climate-daily"></tbody>
+                </table></div>
             </div>
         </section>
 
@@ -60,22 +101,80 @@
             <div id="sensor-list" class="grid grid-cols-1 md:grid-cols-3 gap-6">
                 <!-- Sensors will be loaded here -->
             </div>
-            <div id="details" class="hidden card p-6 mt-8 border-2 border-green-200">
-                <h2 id="details-title" class="text-xl font-bold mb-4">Sensor Details</h2>
-                <div id="details-content"></div>
-                <button onclick="hideDetails()" class="mt-4 bg-green-600 text-white px-4 py-2 rounded">Back to List</button>
+            <div id="details" class="hidden">
+                <button onclick="backToList()" class="mb-4 inline-flex items-center gap-2 px-4 py-2 rounded-lg bg-white shadow text-green-800 font-semibold hover:bg-green-100 border border-green-200">
+                    <span aria-hidden="true" class="text-xl leading-none">&larr;</span> All sensors
+                </button>
+                <div class="card p-6 border-2 border-green-200">
+                    <h2 id="details-title" class="text-xl font-bold mb-4">Sensor Details</h2>
+                    <div id="details-content"></div>
+                    <button onclick="backToList()" class="mt-6 w-full md:w-auto inline-flex justify-center items-center gap-2 bg-green-600 text-white font-semibold px-6 py-3 rounded-lg hover:bg-green-700">
+                        <span aria-hidden="true" class="text-xl leading-none">&larr;</span> Back to all sensors
+                    </button>
+                </div>
             </div>
         </section>
 
         <!-- Wiki Section -->
-        <section id="wiki" class="section">
-            <header class="mb-8">
-                <h2 class="text-3xl font-semibold text-green-800">Garden Wiki</h2>
-                <p class="text-gray-600">Knowledge base for your garden.</p>
+        <section id="almanac" class="section">
+            <header class="mb-4 flex items-center justify-between flex-wrap gap-3">
+                <div>
+                    <h2 class="text-3xl font-semibold text-green-800">Almanac</h2>
+                    <p class="text-gray-600 text-sm">Each day's greenhouse highs &amp; lows, sun, moon, events and journal.</p>
+                </div>
+                <div class="flex items-center gap-1">
+                    <button id="alm-prev" class="px-3 py-2 rounded bg-white shadow hover:bg-green-50" aria-label="Previous month">&lsaquo;</button>
+                    <span id="alm-title" class="px-2 font-semibold min-w-[9rem] text-center"></span>
+                    <button id="alm-next" class="px-3 py-2 rounded bg-white shadow hover:bg-green-50" aria-label="Next month">&rsaquo;</button>
+                    <button id="alm-today" class="ml-2 px-3 py-2 rounded bg-white shadow hover:bg-green-50 text-sm">Today</button>
+                    <button id="alm-add-event" class="staff-only hidden ml-2 px-3 py-2 rounded bg-green-600 text-white text-sm hover:bg-green-700">+ Event</button>
+                </div>
             </header>
-            <div class="card p-8">
-                <p class="text-gray-700">The wiki is currently being populated. <br>Add your growing notes, plant guides, and schedules here.</p>
+            <p id="alm-location-note" class="hidden text-xs text-gray-500 mb-2">Sunrise/sunset need the greenhouse location (GREENPI_LATITUDE / GREENPI_LONGITUDE in /etc/greenpi/greenpi.env).</p>
+            <div class="card p-2 md:p-4 mb-6">
+                <div class="grid grid-cols-7 text-center text-xs font-semibold text-gray-500 mb-1">
+                    <div>Mon</div><div>Tue</div><div>Wed</div><div>Thu</div><div>Fri</div><div>Sat</div><div>Sun</div>
+                </div>
+                <div id="alm-grid" class="grid grid-cols-7 gap-1"></div>
             </div>
+            <div id="alm-day" class="card p-4 md:p-6 hidden"></div>
+        </section>
+
+        <section id="blog" class="section">
+            <header class="mb-4 flex items-center justify-between flex-wrap gap-3">
+                <div>
+                    <h2 class="text-3xl font-semibold text-green-800">Greenhouse journal</h2>
+                    <p class="text-gray-600 text-sm">Notes and photos from the greenhouse.</p>
+                </div>
+                <div class="flex gap-2">
+                    <input id="blog-search" type="search" placeholder="Search posts" class="border border-gray-300 rounded-md p-2 text-sm">
+                    <button id="blog-new" class="staff-only hidden px-4 py-2 rounded bg-green-600 text-white text-sm hover:bg-green-700">+ New post</button>
+                </div>
+            </header>
+            <div id="blog-view"></div>
+        </section>
+
+        <section id="people" class="section">
+            <header class="mb-4">
+                <h2 class="text-3xl font-semibold text-green-800">People</h2>
+                <p class="text-gray-600 text-sm">Everyone can read the site. <b>Gardeners</b> can write the journal, wiki and almanac and add photos;
+                    <b>admins</b> can also change network and sensor settings and manage people.</p>
+            </header>
+            <div id="people-view"></div>
+        </section>
+
+        <section id="wiki" class="section">
+            <header class="mb-4 flex items-center justify-between flex-wrap gap-3">
+                <div>
+                    <h2 class="text-3xl font-semibold text-green-800">Greenhouse wiki</h2>
+                    <p class="text-gray-600 text-sm">Reference pages: plants, beds, equipment, how-tos. Link pages with <code>[[Page name]]</code>.</p>
+                </div>
+                <div class="flex gap-2">
+                    <input id="wiki-search" type="search" placeholder="Search pages" class="border border-gray-300 rounded-md p-2 text-sm">
+                    <button id="wiki-new" class="staff-only hidden px-4 py-2 rounded bg-green-600 text-white text-sm hover:bg-green-700">+ New page</button>
+                </div>
+            </header>
+            <div id="wiki-view"></div>
         </section>
 
         <!-- Config Section -->
@@ -84,7 +183,11 @@
                 <h2 class="text-3xl font-semibold text-green-800">Configuration</h2>
                 <p class="text-gray-600">Manage network and hardware settings.</p>
             </header>
-            <div class="grid grid-cols-1 lg:grid-cols-2 gap-8">
+            <div id="config-login" class="hidden card p-6 mb-6 border-2 border-yellow-200">
+                <p class="text-gray-700">Network settings are for admins.
+                    <button type="button" onclick="openLogin()" class="text-green-700 font-semibold underline">Log in</button> with an admin account to change them.</p>
+            </div>
+            <div id="config-panels" class="grid grid-cols-1 lg:grid-cols-2 gap-8">
                 <!-- AP Mode Panel -->
                 <div class="card p-6">
                     <h3 class="text-xl font-bold mb-4 border-b pb-2">AP Mode Configuration</h3>
@@ -93,6 +196,10 @@
                             <div>
                                 <label class="block text-sm font-medium text-gray-700">SSID</label>
                                 <input type="text" id="config-ssid" name="ssid" class="mt-1 block w-full border border-gray-300 rounded-md shadow-sm p-2">
+                            </div>
+                            <div>
+                                <label class="block text-sm font-medium text-gray-700">Hotspot password</label>
+                                <input type="password" id="config-ap-password" name="wifi_password" placeholder="(unchanged)" autocomplete="new-password" class="mt-1 block w-full border border-gray-300 rounded-md shadow-sm p-2">
                             </div>
                             <div>
                                 <label class="block text-sm font-medium text-gray-700">DNS Entry</label>
@@ -131,17 +238,109 @@
                         </div>
                         <div>
                             <label class="block text-sm font-medium text-gray-700">WiFi Client Password</label>
-                            <input type="text" id="config-wifi-client-password" name="wifi_client_password" placeholder="Remote Network Password" class="mt-1 block w-full border border-gray-300 rounded-md shadow-sm p-2">
+                            <input type="password" id="config-wifi-client-password" name="wifi_client_password" placeholder="Remote Network Password" autocomplete="new-password" class="mt-1 block w-full border border-gray-300 rounded-md shadow-sm p-2">
                         </div>
                         <button type="button" onclick="saveConfig('client')" class="bg-green-600 text-white px-6 py-2 rounded hover:bg-green-700 transition w-full">Save Client Configuration</button>
                     </form>
+                </div>
+
+                <!-- Wi-Fi survey: what the client radio can hear from where the box is mounted -->
+                <div class="card p-6 lg:col-span-2">
+                    <div class="flex items-center justify-between flex-wrap gap-3 border-b pb-2 mb-4">
+                        <h3 class="text-xl font-bold">Wi-Fi survey</h3>
+                        <button id="survey-btn" type="button" onclick="runSurvey()" class="bg-green-600 text-white px-5 py-2 rounded hover:bg-green-700 transition disabled:opacity-50">Scan now</button>
+                    </div>
+                    <p class="text-sm text-gray-600 mb-3">Lists every network the greenhouse's Wi-Fi client radio can hear from where the box is mounted, strongest first. Tap <b>Use</b> to put a network into the client form above.</p>
+                    <p id="survey-status" class="text-sm text-gray-500 mb-2"></p>
+                    <div class="overflow-x-auto"><table class="w-full text-sm">
+                        <thead><tr class="text-left text-gray-500 border-b">
+                            <th class="py-2 pr-3">Network</th><th class="pr-3" style="min-width:9rem">Signal</th>
+                            <th class="pr-3">Ch</th><th class="pr-3">Security</th><th class="pr-3">Verdict</th><th></th>
+                        </tr></thead>
+                        <tbody id="survey-results"><tr><td colspan="6" class="py-2 text-gray-400">No scan yet.</td></tr></tbody>
+                    </table></div>
+                    <p class="text-xs text-gray-500 mt-3">
+                        Signal guide: better than −67 dBm good · −67 to −75 usable · −75 to −85 needs a better antenna · below −85 needs an outdoor Wi-Fi bridge.
+                        dBm values are approximate (from NetworkManager's signal %). This radio is 2.4 GHz only.
+                    </p>
                 </div>
             </div>
         </section>
     </main>
 
+    <!-- Shared editor overlay for blog posts, wiki pages and almanac events -->
+    <div id="login-dlg" class="hidden fixed inset-0 z-[70] bg-black/40 overflow-y-auto">
+        <form id="login-form" class="bg-white max-w-sm mx-auto mt-16 md:mt-24 rounded-xl shadow-xl p-6 space-y-3">
+            <h3 class="text-xl font-bold text-green-800">🌿 Log in</h3>
+            <input id="login-user" type="text" autocomplete="username" autocapitalize="none" placeholder="Login name" class="w-full border border-gray-300 rounded-md p-2">
+            <input id="login-pass" type="password" autocomplete="current-password" placeholder="Password" class="w-full border border-gray-300 rounded-md p-2">
+            <p id="login-msg" class="text-sm text-red-700 min-h-[1.25rem]"></p>
+            <div class="flex justify-end gap-2">
+                <button type="button" id="login-cancel" class="px-4 py-2 rounded border border-gray-300 hover:bg-gray-50">Cancel</button>
+                <button type="submit" class="px-5 py-2 rounded bg-green-600 text-white font-semibold hover:bg-green-700">Log in</button>
+            </div>
+            <p class="text-xs text-gray-500">No account? Ask the greenhouse admin to add you.</p>
+        </form>
+    </div>
+
+    <div id="account-dlg" class="hidden fixed inset-0 z-[70] bg-black/40 overflow-y-auto">
+        <form id="account-form" class="bg-white max-w-lg mx-auto my-4 md:my-12 rounded-xl shadow-xl p-5 md:p-6 space-y-4">
+            <h3 id="acct-heading" class="text-xl font-bold text-green-800">You</h3>
+            <p id="acct-welcome" class="hidden text-sm text-gray-700 bg-green-50 border border-green-200 rounded p-3">
+                Welcome! Pick an avatar, check your name, and choose your own password to replace the temporary one.</p>
+            <div>
+                <div class="text-sm font-semibold mb-2">Avatar</div>
+                <div id="acct-avatars" class="grid grid-cols-4 sm:grid-cols-8 gap-2"></div>
+            </div>
+            <label class="block text-sm font-semibold">Your name (shown on posts)
+                <input id="acct-name" type="text" maxlength="60" class="mt-1 w-full border border-gray-300 rounded-md p-2 font-normal"></label>
+            <fieldset class="border rounded-md p-3 space-y-2">
+                <legend id="acct-pw-legend" class="text-sm font-semibold px-1">Change password (optional)</legend>
+                <input id="acct-cur" type="password" autocomplete="current-password" placeholder="Current password" class="w-full border border-gray-300 rounded-md p-2">
+                <input id="acct-new" type="password" autocomplete="new-password" placeholder="New password (at least 8 characters)" class="w-full border border-gray-300 rounded-md p-2">
+                <input id="acct-new2" type="password" autocomplete="new-password" placeholder="New password again" class="w-full border border-gray-300 rounded-md p-2">
+            </fieldset>
+            <p id="acct-msg" class="text-sm text-red-700 min-h-[1.25rem]"></p>
+            <div class="flex flex-wrap justify-between gap-2">
+                <button type="button" id="acct-logout" class="px-4 py-2 rounded border border-gray-300 hover:bg-gray-50">Log out</button>
+                <div class="flex gap-2 ml-auto">
+                    <button type="button" id="acct-cancel" class="px-4 py-2 rounded border border-gray-300 hover:bg-gray-50">Close</button>
+                    <button type="submit" class="px-5 py-2 rounded bg-green-600 text-white font-semibold hover:bg-green-700">Save</button>
+                </div>
+            </div>
+        </form>
+    </div>
+
+    <div id="editor" class="hidden fixed inset-0 z-[60] bg-black/40 overflow-y-auto">
+        <div class="bg-white max-w-3xl mx-auto my-4 md:my-10 rounded-xl shadow-xl p-4 md:p-6">
+            <h3 id="ed-heading" class="text-xl font-bold mb-4">Edit</h3>
+            <div class="space-y-3">
+                <input id="ed-title" type="text" placeholder="Title" class="w-full border border-gray-300 rounded-md p-2 text-lg">
+                <div id="ed-meta" class="flex flex-wrap gap-3 items-center text-sm"></div>
+                <div class="flex flex-wrap gap-2 items-center">
+                    <label id="ed-photo-label" class="cursor-pointer px-3 py-1 rounded border border-green-600 text-green-700 hover:bg-green-50 text-sm">
+                        📷 Add photo<input id="ed-photo" type="file" accept="image/*" class="hidden">
+                    </label>
+                    <button id="ed-preview-btn" type="button" class="px-3 py-1 rounded border border-gray-400 text-gray-700 hover:bg-gray-50 text-sm">Preview</button>
+                    <span id="ed-status" class="text-xs text-gray-500"></span>
+                </div>
+                <textarea id="ed-body" rows="14" placeholder="Write in Markdown. Link wiki pages with [[Page name]]." class="w-full border border-gray-300 rounded-md p-2 font-mono text-sm"></textarea>
+                <div id="ed-preview" class="hidden prose border rounded-md p-3 bg-gray-50"></div>
+            </div>
+            <div class="flex flex-wrap justify-between gap-2 mt-4">
+                <button id="ed-delete" type="button" class="hidden px-4 py-2 rounded text-red-700 border border-red-300 hover:bg-red-50">Delete</button>
+                <div class="flex gap-2 ml-auto">
+                    <button id="ed-cancel" type="button" class="px-4 py-2 rounded border border-gray-300 hover:bg-gray-50">Cancel</button>
+                    <button id="ed-save" type="button" class="px-5 py-2 rounded bg-green-600 text-white font-semibold hover:bg-green-700">Save</button>
+                </div>
+            </div>
+        </div>
+    </div>
+
     <script>
         function showSection(sectionId) {
+            // Switching tabs while a sensor is open closes it (back to the list next time).
+            if (selectedSensor) hideDetails();
             document.querySelectorAll('.section').forEach(s => s.classList.remove('active'));
             const target = document.getElementById(sectionId);
             if (target) {
@@ -177,6 +376,7 @@
             document.getElementById('details').classList.add('hidden');
             selectedSensor = null;
             if (historyChart) { historyChart.destroy(); historyChart = null; }
+            if (location.hash.startsWith('#sensor-')) history.replaceState(null, '', '#/sensors');
         }
 
         async function loadSensors() {
@@ -315,7 +515,21 @@
             }
         }
 
+        // Back to the sensor list. Opening a sensor pushes a history entry, so the
+        // phone/browser Back button also returns here instead of leaving the page.
+        function backToList() {
+            if (history.state && history.state.sensor !== undefined) {
+                history.back();  // popstate handler hides the details
+            } else {
+                hideDetails();
+            }
+        }
+        window.addEventListener('popstate', () => { if (selectedSensor) hideDetails(); });
+        document.addEventListener('keydown', e => { if (e.key === 'Escape' && selectedSensor) backToList(); });
+
         function showDetails(sensor) {
+            if (!selectedSensor) history.pushState({ sensor: sensor.id }, '', `#sensor-${sensor.id}`);
+            window.scrollTo(0, 0);
             selectedSensor = sensor;
             document.getElementById('sensor-list').classList.add('hidden');
             document.getElementById('details').classList.remove('hidden');
@@ -323,21 +537,214 @@
             loadReadings(sensor);
         }
 
+        // ---------------------------------------------------------------
+        // Climate dashboard
+        // ---------------------------------------------------------------
+        let climateHours = 24;
+        let climateChart = null;
+        const TEMP_COLORS = ['#dc2626', '#ea580c', '#b91c1c', '#f59e0b'];
+        const RH_COLORS = ['#2563eb', '#0891b2', '#4f46e5', '#0284c7'];
+
+        function fmtAgo(iso) {
+            const s = Math.round((Date.now() - new Date(iso)) / 1000);
+            if (s < 90) return `${s}s ago`;
+            if (s < 5400) return `${Math.round(s / 60)} min ago`;
+            return new Date(iso).toLocaleString();
+        }
+
+        function tile(label, value, unit, sub) {
+            return `<div class="card p-4">
+                <p class="text-sm text-gray-500">${label}</p>
+                <p class="text-3xl font-bold">${value}<span class="text-lg font-normal text-gray-500"> ${unit}</span></p>
+                <p class="text-xs text-gray-400">${sub || ''}</p></div>`;
+        }
+
+        async function loadClimate() {
+            document.querySelectorAll('.range-btn').forEach(b => {
+                const on = Number(b.dataset.hours) === climateHours;
+                b.classList.toggle('bg-green-600', on);
+                b.classList.toggle('text-white', on);
+            });
+            let data;
+            try {
+                const r = await fetch(`/api/climate/?hours=${climateHours}&days=14`);
+                data = await r.json();
+            } catch (e) {
+                document.getElementById('climate-updated').innerText = 'Could not reach the greenhouse controller.';
+                return;
+            }
+            const sensors = data.sensors || [];
+
+            // Current values + today's range for each sensor.
+            const tiles = [];
+            sensors.forEach(s => {
+                const v = (s.latest && s.latest.values) || {};
+                const today = s.daily[0] || {};
+                if ('temperature_f' in v) {
+                    const t = today.temperature_f;
+                    tiles.push(tile(`${s.name} – temp`, v.temperature_f.toFixed(1), '°F',
+                        t ? `today ${t.min}–${t.max} °F` : ''));
+                }
+                if ('humidity_pct' in v) {
+                    const h = today.humidity_pct;
+                    tiles.push(tile(`${s.name} – humidity`, v.humidity_pct.toFixed(0), '%',
+                        h ? `today ${h.min.toFixed(0)}–${h.max.toFixed(0)} %` : ''));
+                }
+            });
+            document.getElementById('climate-now').innerHTML = tiles.join('');
+            const newest = sensors.map(s => s.latest && s.latest.timestamp).filter(Boolean).sort().pop();
+            document.getElementById('climate-updated').innerText =
+                newest ? `Last reading ${fmtAgo(newest)} · times in ${data.timezone}` : 'No readings yet.';
+
+            // Chart: temperature on the left axis, humidity on the right.
+            // A stretch with no readings (power cut, sampler down) is drawn as a
+            // break in the line, not a straight ramp across the missing hours.
+            const maxGap = Math.max(3 * (data.bucket_seconds || 60), 15 * 60) * 1000;
+            const withGaps = pts => pts.flatMap((p, j) =>
+                j && p.x - pts[j - 1].x > maxGap ? [{ x: (p.x + pts[j - 1].x) / 2, y: null }, p] : [p]);
+            const datasets = [];
+            sensors.forEach((s, i) => {
+                if (s.keys.includes('temperature_f')) datasets.push({
+                    label: `${s.name} °F`, yAxisID: 'temp',
+                    data: withGaps(s.series.filter(p => 'temperature_f' in p).map(p => ({ x: p.t, y: p.temperature_f }))),
+                    borderColor: TEMP_COLORS[i % TEMP_COLORS.length], backgroundColor: TEMP_COLORS[i % TEMP_COLORS.length],
+                    borderWidth: 2, pointRadius: 0, tension: 0.2 });
+                if (s.keys.includes('humidity_pct')) datasets.push({
+                    label: `${s.name} RH %`, yAxisID: 'rh',
+                    data: withGaps(s.series.filter(p => 'humidity_pct' in p).map(p => ({ x: p.t, y: p.humidity_pct }))),
+                    borderColor: RH_COLORS[i % RH_COLORS.length], backgroundColor: RH_COLORS[i % RH_COLORS.length],
+                    borderWidth: 1.5, borderDash: [4, 3], pointRadius: 0, tension: 0.2 });
+            });
+            const empty = datasets.every(d => d.data.length === 0);
+            document.getElementById('climate-empty').classList.toggle('hidden', !empty);
+
+            const multiDay = climateHours > 48;
+            const tickFmt = ms => {
+                const d = new Date(ms);
+                return multiDay ? d.toLocaleDateString(undefined, { month: 'short', day: 'numeric' })
+                                : d.toLocaleTimeString(undefined, { hour: 'numeric', minute: '2-digit' });
+            };
+            if (climateChart) climateChart.destroy();
+            climateChart = new Chart(document.getElementById('climate-chart'), {
+                type: 'line',
+                data: { datasets },
+                options: {
+                    responsive: true, maintainAspectRatio: false, animation: false,
+                    interaction: { mode: 'nearest', axis: 'x', intersect: false },
+                    plugins: { tooltip: { callbacks: { title: items => new Date(items[0].parsed.x).toLocaleString() } } },
+                    scales: {
+                        x: { type: 'linear', min: Date.now() - climateHours * 3600e3, max: Date.now(),
+                             ticks: { maxTicksLimit: 8, callback: tickFmt } },
+                        temp: { position: 'left', title: { display: true, text: '°F' } },
+                        rh: { position: 'right', min: 0, max: 100, grid: { drawOnChartArea: false },
+                              title: { display: true, text: 'RH %' } },
+                    },
+                },
+            });
+
+            // Daily highs & lows (first sensor that reports temperature).
+            const main = sensors.find(s => s.keys.includes('temperature_f'));
+            document.getElementById('climate-daily').innerHTML = (main ? main.daily : []).map(d => {
+                const t = d.temperature_f, h = d.humidity_pct;
+                const day = new Date(d.date + 'T12:00:00').toLocaleDateString(undefined, { weekday: 'short', month: 'short', day: 'numeric' });
+                return `<tr class="border-b last:border-0">
+                    <td class="py-2 pr-4">${day}</td>
+                    <td class="pr-4 text-blue-700 font-semibold">${t ? t.min : '–'}</td>
+                    <td class="pr-4 text-red-700 font-semibold">${t ? t.max : '–'}</td>
+                    <td class="pr-4">${t ? (t.max - t.min).toFixed(1) : '–'}</td>
+                    <td class="pr-4">${h ? h.avg.toFixed(0) : '–'}</td>
+                    <td class="text-gray-500">${t ? t.n : (h ? h.n : 0)}</td></tr>`;
+            }).join('') || '<tr><td colspan="6" class="py-2 text-gray-500">No data yet.</td></tr>';
+        }
+
+        document.querySelectorAll('.range-btn').forEach(b => b.addEventListener('click', () => {
+            climateHours = Number(b.dataset.hours);
+            loadClimate();
+        }));
+        setInterval(() => {
+            if (document.getElementById('home').classList.contains('active')) loadClimate();
+        }, 60000);
+
+        // ---------------------------------------------------------------
+        // Network configuration (admin only)
+        // ---------------------------------------------------------------
+        function csrfToken() {
+            const m = document.cookie.match(/(?:^|;\s*)csrftoken=([^;]+)/);
+            return m ? decodeURIComponent(m[1]) : '';
+        }
+
         async function loadNetworkConfig() {
             try {
                 const response = await fetch('/api/network/');
+                const loggedIn = response.status !== 403;
+                document.getElementById('config-login').classList.toggle('hidden', loggedIn);
+                document.getElementById('config-panels').classList.toggle('hidden', !loggedIn);
+                if (!loggedIn) return;
                 const data = await response.json();
-                
+
                 document.getElementById('config-ssid').value = data.ssid;
                 document.getElementById('config-dns').value = data.dns_entry;
                 document.getElementById('config-dhcp').value = data.ap_dhcp_range;
                 document.getElementById('config-eth').value = data.primary_eth_ip;
                 document.getElementById('config-wifi-client').value = data.wifi_client_ssid;
-                document.getElementById('config-wifi-client-password').value = data.wifi_client_password;
+                document.getElementById('config-wifi-client-password').placeholder =
+                    data.wifi_client_password_set ? '(saved – leave blank to keep)' : 'Remote Network Password';
                 document.getElementById('config-hostname').value = data.local_hostname;
                 document.getElementById('config-ap').checked = data.is_ap_mode;
             } catch (e) {
                 console.error("Failed to load network config", e);
+            }
+        }
+
+        // Network names come from the air: always escape before putting them in HTML.
+        function escapeHtml(s) {
+            return String(s).replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
+        }
+
+        const SURVEY_LEVELS = {
+            good: { label: 'Good',      bar: 'bg-green-500',  text: 'text-green-700' },
+            ok:   { label: 'Usable',    bar: 'bg-lime-500',   text: 'text-lime-700' },
+            weak: { label: 'Weak',      bar: 'bg-orange-400', text: 'text-orange-700' },
+            poor: { label: 'Too weak',  bar: 'bg-red-500',    text: 'text-red-700' },
+        };
+
+        async function runSurvey() {
+            const btn = document.getElementById('survey-btn');
+            const status = document.getElementById('survey-status');
+            const body = document.getElementById('survey-results');
+            btn.disabled = true;
+            status.innerText = 'Scanning… (about 10 seconds)';
+            try {
+                const r = await fetch('/api/network/survey/');
+                const d = await r.json();
+                if (!r.ok) { status.innerText = 'Scan failed: ' + (d.message || r.status); return; }
+                const nets = d.networks || [];
+                status.innerText = d.note ? d.note + (d.scanned_at ? ` (${new Date(d.scanned_at).toLocaleString()})` : '')
+                    : `${nets.length} network(s) heard by ${d.interface} at ${new Date(d.scanned_at).toLocaleTimeString()}.`;
+                body.innerHTML = nets.map((n, i) => {
+                    const lv = SURVEY_LEVELS[n.level] || SURVEY_LEVELS.poor;
+                    const use = (n.hidden || n.own_hotspot) ? '' :
+                        `<button type="button" data-survey-ssid="${i}" class="px-3 py-1 rounded border border-green-600 text-green-700 hover:bg-green-50">Use</button>`;
+                    return `<tr class="border-b last:border-0 align-top">
+                        <td class="py-2 pr-3"><span class="font-semibold">${escapeHtml(n.ssid)}</span>${n.connected ? ' <span class="text-xs text-green-700">(connected)</span>' : ''}${n.own_hotspot ? ' <span class="text-xs text-gray-500">(this box\'s hotspot)</span>' : ''}
+                            <div class="text-xs text-gray-400">${escapeHtml(n.bssid)}</div></td>
+                        <td class="py-2 pr-3"><div class="w-full bg-gray-200 rounded h-2 mt-1"><div class="${lv.bar} h-2 rounded" style="width:${Math.max(3, n.signal_pct)}%"></div></div>
+                            <div class="text-xs text-gray-600 mt-1">${n.dbm_approx} dBm · ${n.signal_pct}%</div></td>
+                        <td class="py-2 pr-3">${escapeHtml(n.channel)}</td>
+                        <td class="py-2 pr-3 text-xs">${escapeHtml(n.security)}</td>
+                        <td class="py-2 pr-3"><span class="font-semibold ${lv.text}">${lv.label}</span><div class="text-xs text-gray-500">${escapeHtml(n.advice)}</div></td>
+                        <td class="py-2">${use}</td></tr>`;
+                }).join('') || '<tr><td colspan="6" class="py-2 text-gray-500">No networks heard.</td></tr>';
+                body.querySelectorAll('[data-survey-ssid]').forEach(b => b.addEventListener('click', () => {
+                    document.getElementById('config-wifi-client').value = nets[Number(b.dataset.surveySsid)].ssid;
+                    const pw = document.getElementById('config-wifi-client-password');
+                    pw.scrollIntoView({ behavior: 'smooth', block: 'center' });
+                    pw.focus();
+                }));
+            } catch (e) {
+                status.innerText = 'Scan failed: could not reach the controller.';
+            } finally {
+                btn.disabled = false;
             }
         }
 
@@ -346,6 +753,7 @@
             if (type === 'ap') {
                 data = {
                     ssid: document.getElementById('config-ssid').value,
+                    wifi_password: document.getElementById('config-ap-password').value,
                     dns_entry: document.getElementById('config-dns').value,
                     ap_dhcp_range: document.getElementById('config-dhcp').value,
                     primary_eth_ip: document.getElementById('config-eth').value,
@@ -363,23 +771,30 @@
                 const response = await fetch('/api/network/', {
                     method: 'POST',
                     headers: {
-                        'Content-Type': 'application/json'
+                        'Content-Type': 'application/json',
+                        'X-CSRFToken': csrfToken(),
                     },
                     body: JSON.stringify(data)
                 });
                 if (response.ok) {
-                    alert("Configuration saved successfully!");
+                    let ok = {};
+                    try { ok = await response.json(); } catch (e) {}
+                    alert(ok.message || "Configuration saved successfully!");
+                    document.getElementById('config-ap-password').value = '';
+                    document.getElementById('config-wifi-client-password').value = '';
                     loadNetworkConfig();
                 } else {
-                    alert("Failed to save configuration.");
+                    let msg = '';
+                    try { msg = (await response.json()).message || ''; } catch (e) {}
+                    alert("Failed to save configuration. " + msg);
                 }
             } catch (e) {
                 console.error("Error saving configuration", e);
             }
         }
 
-        loadSensors();
-        loadNetworkConfig();
+        // Initial data loading is done by the router in content.js (per tab).
     </script>
+    <script src="/static/js/content.js"></script>
 </body>
 </html>

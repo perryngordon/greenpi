@@ -1,0 +1,16 @@
+[Unit]
+Description=GreenPi sensor sampler (stores configured sensor readings)
+After=local-fs.target
+
+[Service]
+User=admin
+Group=admin
+WorkingDirectory=/home/admin/greenpi
+EnvironmentFile=/etc/greenpi/greenpi.env
+Environment=PYTHONUNBUFFERED=1
+ExecStart=/home/admin/greenpi/venv/bin/python manage.py sample_sensors --loop --tick 10
+Restart=always
+RestartSec=10
+
+[Install]
+WantedBy=multi-user.target

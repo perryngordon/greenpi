@@ -1,0 +1,6 @@
+# Linksys AE1200 (Broadcom, brcmfmac) -> hotspot radio
+[Match]
+MACAddress=60:38:e0:09:cc:9c
+
+[Link]
+Name=wlap0
