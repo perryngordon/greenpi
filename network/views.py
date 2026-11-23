@@ -72,6 +72,9 @@ def apply_ap(config):
     dnsmasq = "\n".join([
         f"interface={iface}",
         "bind-dynamic",  # tolerates the interface appearing after dnsmasq starts
+        # Ignore the Pi's /etc/hosts: it maps "greenhouse" to 127.0.1.1, which
+        # would beat the address= lines below and break http://greenhouse/.
+        "no-hosts",
         f"dhcp-range={start},{end},255.255.255.0,12h",
         # No default gateway: phones keep using mobile data for the internet
         # while still reaching the dashboard at the hotspot address.
