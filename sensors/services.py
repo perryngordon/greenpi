@@ -48,11 +48,16 @@ class SensorDiscoveryService:
         try:
             with smbus2.SMBus(bus_number) as bus:
                 for address in range(0x03, 0x78):
-                    try:
-                        bus.write_quick(address, 0)
-                        devices.append(hex(address))
-                    except OSError:
-                        pass
+                    # Some chips (e.g. the capacitive soil sensor) sleep and
+                    # ignore the first transaction that wakes them, so ask
+                    # up to three times before deciding nothing is there.
+                    for _ in range(3):
+                        try:
+                            bus.write_quick(address, 0)
+                            devices.append(hex(address))
+                            break
+                        except OSError:
+                            pass
         except Exception as e:
             print(f"Error scanning I2C bus {bus_number}: {e}")
         return devices
