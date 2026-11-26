@@ -2,7 +2,7 @@ import smbus2
 
 from django.conf import settings
 
-from .drivers import AS7331Driver, BME688Driver, SHTC3Driver
+from .drivers import AS7331Driver, BME688Driver, SHTC3Driver, SoilCapacitiveDriver
 from .simulated import SIMULATED_DRIVERS
 
 # Maps an I2C address to the driver class that knows how to read it.
@@ -15,6 +15,7 @@ else:
         '0x70': SHTC3Driver,
         '0x76': BME688Driver,  # ADR jumper changed
         '0x77': BME688Driver,  # SparkFun default
+        '0x37': SoilCapacitiveDriver,  # SparkFun capacitive soil sensor
     }
 
 

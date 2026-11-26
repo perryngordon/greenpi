@@ -352,3 +352,80 @@ class BME688Driver:
 
     def close(self):
         self.bus.close()
+
+
+# --- SparkFun Qwiic Soil Moisture Sensor (Capacitive), SEN-30480 ---
+# Infineon CY8CMBR3102 CapSense controller, default address 0x37.
+
+_MBR3_REG_SENSOR_ID = 0x82        # which sensor the DEBUG_* registers describe
+_MBR3_REG_FAMILY_ID = 0x8F        # 0x9A for the CY8CMBR3xxx family
+_MBR3_REG_DEBUG_SENSOR_ID = 0xDC  # follows SENSOR_ID once the chip has updated
+_MBR3_REG_DEBUG_CP = 0xDD         # sensor capacitance, whole pF
+_MBR3_REG_DEBUG_RAW = 0xE2        # raw count (16 bit)
+_MBR3_FAMILY = 0x9A
+
+
+class SoilCapacitiveDriver:
+    """
+    Driver for the SparkFun Qwiic capacitive soil moisture sensor.
+
+    Reports:
+      * capacitance_pf: the probe's absolute capacitance in whole pF. Wetter
+        soil = higher. On the bench: 7 pF dry in air, 10 pF part-way into a
+        cup of water. This is the value to calibrate a moisture % against
+        (dry soil vs. just-watered soil).
+      * raw_count: much finer, but the chip re-tunes it every time it powers
+        up or resets (it jumps to ~3000), so only changes *between* restarts
+        mean anything.
+
+    The chip sleeps between scans and NAKs the first I2C transaction that
+    wakes it, so every access is retried. DEBUG_CP is only refreshed when
+    SENSOR_ID changes, so each read flips SENSOR_ID 1 -> 0 (the same method
+    as SparkFun's own library). The saved configuration is never modified.
+    """
+
+    retries = 8
+
+    def __init__(self, bus_number: int = 1, address: int = 0x37):
+        self.bus_number = bus_number
+        self.address = address
+        self.bus = smbus2.SMBus(bus_number)
+
+    def _retry(self, fn, *args):
+        for attempt in range(self.retries):
+            try:
+                return fn(self.address, *args)
+            except OSError:
+                if attempt == self.retries - 1:
+                    raise
+                time.sleep(0.02)
+
+    def _select_sensor(self, sensor_id: int, timeout: float = 1.0) -> bool:
+        self._retry(self.bus.write_byte_data, _MBR3_REG_SENSOR_ID, sensor_id)
+        deadline = time.monotonic() + timeout
+        while time.monotonic() < deadline:
+            if self._retry(self.bus.read_byte_data, _MBR3_REG_DEBUG_SENSOR_ID) == sensor_id:
+                return True
+            time.sleep(0.01)
+        return False
+
+    def read_raw_data(self) -> Optional[Dict[str, float]]:
+        try:
+            if self._retry(self.bus.read_byte_data, _MBR3_REG_FAMILY_ID) != _MBR3_FAMILY:
+                return None
+            if not (self._select_sensor(1) and self._select_sensor(0)):
+                return None
+            return {
+                "capacitance_pf": float(self._retry(self.bus.read_byte_data, _MBR3_REG_DEBUG_CP)),
+                "raw_count": float(self._retry(self.bus.read_word_data, _MBR3_REG_DEBUG_RAW)),
+            }
+        except OSError as e:
+            print(f"Error reading soil sensor: {e}")
+            return None
+
+    def calibrate(self, raw: Dict[str, float]) -> Dict[str, float]:
+        # No moisture % yet: it needs a dry-soil and a just-watered reading.
+        return {"capacitance_pf": int(raw["capacitance_pf"]), "raw_count": int(raw["raw_count"])}
+
+    def close(self):
+        self.bus.close()

@@ -92,6 +92,49 @@ class BME688CompensationTests(TestCase):
         self.assertEqual(values, {'temperature_f': 72.61, 'humidity_pct': 13.22, 'pressure_hpa': 735.6})
 
 
+class SoilCapacitiveDriverTests(TestCase):
+    class FakeMBR3:
+        """Mimics the CY8CMBR3102: NAKs every 3rd access (wake-up), DEBUG_SENSOR_ID follows SENSOR_ID."""
+        def __init__(self, *args):
+            self.calls, self.sensor_id = 0, 0
+            self.regs = {0x8F: 0x9A, 0xDD: 7, 0xE2: 1116}
+
+        def _maybe_nak(self):
+            self.calls += 1
+            if self.calls % 3 == 1:
+                raise OSError(5, 'Input/output error')
+
+        def read_byte_data(self, addr, reg):
+            self._maybe_nak()
+            return self.sensor_id if reg == 0xDC else self.regs[reg]
+
+        def read_word_data(self, addr, reg):
+            self._maybe_nak()
+            return self.regs[reg]
+
+        def write_byte_data(self, addr, reg, value):
+            self._maybe_nak()
+            if reg == 0x82:
+                self.sensor_id = value
+
+        def close(self):
+            pass
+
+    def test_reads_capacitance_through_wakeup_naks(self):
+        from .drivers import SoilCapacitiveDriver
+        with mock.patch('sensors.drivers.smbus2.SMBus', self.FakeMBR3):
+            d = SoilCapacitiveDriver(address=0x37)
+            raw = d.read_raw_data()
+        self.assertEqual(d.calibrate(raw), {'capacitance_pf': 7, 'raw_count': 1116})
+
+    def test_wrong_chip_returns_none(self):
+        from .drivers import SoilCapacitiveDriver
+        with mock.patch('sensors.drivers.smbus2.SMBus', self.FakeMBR3):
+            d = SoilCapacitiveDriver(address=0x37)
+            d.bus.regs[0x8F] = 0x12
+            self.assertIsNone(d.read_raw_data())
+
+
 class PruneReadingsCommandTests(TestCase):
     def _reading(self, sensor, age_days):
         r = SensorReading.objects.create(sensor=sensor, values={'v': age_days})
