@@ -22,6 +22,7 @@ done
 venv/bin/pip install -q --upgrade pip
 venv/bin/pip install -q -r requirements.txt
 venv/bin/python manage.py migrate --noinput
+venv/bin/python manage.py collectstatic --noinput -v 0
 if [ -z "${GREENPI_ADMIN_PASSWORD:-}" ]; then
     read -r -s -p "Choose a password for the local 'admin' web account: " GREENPI_ADMIN_PASSWORD; echo
     export GREENPI_ADMIN_PASSWORD

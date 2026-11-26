@@ -258,4 +258,5 @@ class StagingTests(TestCase):
             s = self.client.get("/api/network/survey/").json()
             self.assertEqual(s["networks"][0]["ssid"], "NeighbourWiFi")
             self.assertIsNotNone(self.client.get("/api/me/").json()["staging"])
-        self.assertIsNone(self.client.get("/api/me/").json()["staging"])
+        with override_settings(GREENPI_STAGING=False):   # also when run on a dev laptop in staging mode
+            self.assertIsNone(self.client.get("/api/me/").json()["staging"])
