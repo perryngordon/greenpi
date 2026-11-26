@@ -1,4 +1,7 @@
-import smbus2
+try:
+    import smbus2
+except ImportError:  # Windows dev laptop: smbus2 needs Linux's fcntl. Use GREENPI_STAGING=1 (simulated sensors).
+    smbus2 = None
 import time
 from typing import Dict, Optional
 

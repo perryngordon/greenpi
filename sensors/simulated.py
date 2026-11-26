@@ -92,7 +92,63 @@ class SimulatedAS7331:
         pass
 
 
+def outside_at(now: datetime) -> dict:
+    """Outdoor air at Ward: colder than inside, small sun bump, pressure with passing storms."""
+    day = now.timetuple().tm_yday
+    season = -math.cos(2 * math.pi * (day - 25) / 365)
+    sun = _sun_factor(now)
+    rng = random.Random(now.date().toordinal())
+    cloud = rng.uniform(0.35, 1.0)
+    temp_f = 22 + 22 * season + 14 * sun * cloud + random.gauss(0, 0.4)
+    humidity = 55 - 15 * sun * cloud + 25 * (1 - cloud) + random.gauss(0, 1.5)
+    # ~720 hPa at 9,400 ft; a slow swell of a few days plus the storm days (cloudy = low).
+    hours = now.timestamp() / 3600
+    pressure = 721 + 4 * math.sin(2 * math.pi * hours / 96) - 6 * (1 - cloud) + random.gauss(0, 0.1)
+    return {
+        "temperature_f": round(temp_f, 2),
+        "humidity_pct": round(min(99.0, max(5.0, humidity)), 2),
+        "pressure_hpa": round(pressure, 1),
+    }
+
+
+class SimulatedBME688:
+    def __init__(self, bus_number: int = 1, address: int = 0x76):
+        self.address = address
+
+    def read_raw_data(self):
+        return outside_at(_local_now())
+
+    def calibrate(self, raw):
+        return dict(raw)
+
+    def close(self):
+        pass
+
+
+class SimulatedSoil:
+    """Capacitive soil probe: dries out over ~4 days, then a watering jumps it back up."""
+
+    def __init__(self, bus_number: int = 1, address: int = 0x37):
+        self.address = address
+
+    def read_raw_data(self):
+        now = _local_now()
+        days = now.timestamp() / 86400
+        dryness = (days % 4) / 4                          # 0 just watered .. 1 dry
+        pf = 7 + 6 * (1 - dryness) ** 1.5                 # ~13 pF wet .. 7 pF dry
+        return {"capacitance_pf": int(round(pf)),
+                "raw_count": int(1100 + 500 * (pf - 7) + random.gauss(0, 3))}
+
+    def calibrate(self, raw):
+        return dict(raw)
+
+    def close(self):
+        pass
+
+
 SIMULATED_DRIVERS = {
     '0x74': SimulatedAS7331,
     '0x70': SimulatedSHTC3,
+    '0x76': SimulatedBME688,
+    '0x37': SimulatedSoil,
 }

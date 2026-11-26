@@ -1,4 +1,7 @@
-import smbus2
+try:
+    import smbus2
+except ImportError:  # Windows dev laptop: no I2C; GREENPI_STAGING=1 uses simulated sensors
+    smbus2 = None
 
 from django.conf import settings
 
@@ -44,6 +47,8 @@ class SensorDiscoveryService:
         """Scans the specified I2C bus and returns a list of device addresses."""
         if settings.GREENPI_STAGING:
             return list(SIMULATED_DRIVERS)
+        if smbus2 is None:  # no I2C support on this computer
+            return []
         devices = []
         try:
             with smbus2.SMBus(bus_number) as bus:
