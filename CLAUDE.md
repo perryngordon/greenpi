@@ -10,10 +10,12 @@ GreenPi is a Django web app for monitoring/controlling a greenhouse from a singl
 
 A virtualenv exists at `venv/`; dependencies are pinned in `requirements.txt`. On the device the app runs as systemd services — see `deploy/README.md` (`deploy/install.sh` is the idempotent installer).
 
+**Developing on a laptop (Mac/Linux)** — see `docs/DEVELOPING.md`: `deploy/setup-local.sh` (one-time), `deploy/run-local.sh` (app + sampler with simulated sensors at :8000), `deploy/onsite-update.sh` (on site via the `GreenPi_WiFi` hotspot: push code, install, fetch data to `~/greenpi-snapshots/`), `deploy/load-local.sh` (load that data locally). Windows equivalents: `deploy/*.ps1`. Always set `GREENPI_STAGING=1` off-device (the scripts do).
+
 ```bash
 source venv/bin/activate
 
-python manage.py runserver 0.0.0.0:8000   # dev server
+GREENPI_STAGING=1 python manage.py runserver 0.0.0.0:8000   # dev server (simulated sensors)
 python manage.py makemigrations <app>     # after changing a model
 python manage.py migrate
 python manage.py test                     # all apps
@@ -22,7 +24,7 @@ python manage.py test sensors.tests.SomeTestCase  # single test case
 python manage.py createsuperuser          # for /admin/
 ```
 
-`smbus2` (I2C) calls in `sensors/drivers.py` and `sensors/services.py` will fail outside of an SBC with an I2C bus present — expect `OSError`s when running the dev server off-device.
+Off-device, use staging mode: real I2C calls fail without a bus (`smbus2` isn't even importable on Windows; the import is optional).
 
 ## Architecture
 
@@ -35,10 +37,27 @@ python manage.py createsuperuser          # for /admin/
 - **`almanac/`** — `AlmanacEvent` (one-off or `yearly`; kinds frost/planting/harvest/task/note). `/api/almanac/month/` and `/day/<date>/` combine daily greenhouse min/max/avg (DB-side aggregation by local day over the primary climate sensor), sun times (`astral`, needs `GREENPI_LATITUDE`/`GREENPI_LONGITUDE`), moon phase, events and that day's posts.
 - **`config/markup.py`** — the one Markdown renderer (wiki links + `nh3` sanitising). Always render user text through it; never put raw user HTML in the page. **`config/api.py`** — permission helpers: reads are public; `editor_only`/`can_edit` = any active account that has replaced its temporary password (journal, wiki, almanac, photos); `staff_only`/`is_staff` = admins (network, sensors, people). All writes also need CSRF.
 - **`client/static/js/content.js`** — hash router (`#/almanac/2026-11-16`, `#/blog/5`, `#/wiki/slug`) plus the almanac/blog/wiki UI and the shared editor overlay (photo upload, server-side preview via `/api/preview/`).
-- **Staging copy** — `GREENPI_STAGING=1` (pve CT 219, http://10.8.0.22/): `sensors/simulated.py` replaces the I2C drivers (`services.DRIVERS`), network views save but never apply, the survey shows the Pi's last saved scan, `/api/me` returns `staging` info for the banner. `manage.py load_snapshot` (refuses unless staging) swaps in a Pi backup and blanks Wi-Fi passwords. Develop and click-test there first; see `deploy/staging/README.md`. `manage.py seed_defaults` creates the admin user + known sensors on both.
+- **Staging copy** — `GREENPI_STAGING=1`, either a developer's laptop (`deploy/run-local.sh`) or the owner's always-on copy (pve CT 219, http://10.8.0.22/, VPN only): `sensors/simulated.py` replaces the I2C drivers (`services.DRIVERS`), network views save but never apply, the survey shows the Pi's last saved scan, `/api/me` returns `staging` info for the banner. `manage.py load_snapshot` (refuses unless staging) swaps in a Pi backup and blanks Wi-Fi passwords. Develop and click-test there first; see `docs/DEVELOPING.md` and `deploy/staging/README.md`. `manage.py seed_defaults` creates the admin user + known sensors on both.
 - **`accounts/`** — `Profile` (display name, avatar slug, `must_change_password`) per Django user; role = `User.is_staff` (admin) or not (gardener). JSON API: `/api/login/`, `/api/logout/`, `/api/me/` (GET/PUT), `/api/me/password/`, admin-only `/api/people/`. No self-signup: admins add people and get a one-time temporary password. Wrong passwords lock a login name for 15 min (file cache in `DATA_DIR/cache`). Avatars are original SVGs in `client/static/avatars/` (list in `accounts/avatars.py`).
 - **`dashboard/`** — scaffolded stub app, not in `INSTALLED_APPS`.
 - **`rtl8188eu/`** (on the device only, git-ignored) — old out-of-tree driver source for the Comfast RTL8188EUS dongle. No longer needed: kernel 6.12's in-tree `rtl8xxxu` drives it.
+
+## The hardware (greenhouse box)
+
+- **Pi:** Raspberry Pi CM4 on the official CM4 IO Board, boots from eMMC, hostname `greenhouse`, user `admin`. Data (backups, photos, surveys, cache) on a USB stick at `/srv/greenpi-data` (`GREENPI_DATA_DIR`). Services: `greenpi-web` (gunicorn :80), `greenpi-sampler` (reads due sensors every 10 s tick), `greenpi-backup.timer` (02:30 DB snapshot), `hostapd` + `dnsmasq`.
+- **Clock:** no internet on site, so the IO Board's PCF85063A RTC (CR2032; `i2c-10` @0x51, enabled by `deploy/install.sh` in `config.txt`) sets the time at boot; `onsite-update` also sets it from the laptop. `fake-hwclock` is the fallback.
+- **Radios:** no onboard Wi-Fi on this CM4. `wlap0` = Linksys AE1200 USB, the `GreenPi_WiFi` hotspot at 10.42.0.1 (dnsmasq answers `greenhouse` / `greenhouse.lan`, no default route so phones keep mobile data). `wlsta0` = Comfast RTL8188EUS USB, Wi-Fi client via NetworkManager for an uplink. Both pinned by MAC. `wg0` is the owner's remote-access VPN — don't touch.
+- **Sensors (I2C bus 1, Qwiic, some via SparkFun QwiicBus Ethernet extenders):**
+
+  | Addr | Board | Driver | Notes |
+  |---|---|---|---|
+  | 0x70 | SparkFun SHTC3 | `SHTC3Driver` | temp/RH, inside air; fixed address |
+  | 0x74 | SparkFun AS7331 | `AS7331Driver` | UV A/B/C; its temperature is the die temp (kept off the climate view); reads ~0 indoors |
+  | 0x76 | SparkFun BME688 (ADR jumper; 0x77 default) | `BME688Driver` | temp/RH/pressure, planned outside sensor; gas heater kept OFF |
+  | 0x37 | SparkFun capacitive soil (SEN-30480, CY8CMBR3102) | `SoilCapacitiveDriver` | sleeps and NAKs the first transaction (driver + bus scan retry); `capacitance_pf` is absolute (7 pF dry), `raw_count` re-tunes on every chip power-up; moisture % not calibrated yet |
+
+  A bad/miswired board can hold SDA low and make every address answer in `i2cdetect` — unplug things one by one. The sampler skips a sensor that throws `OSError` so one bad board can't stop logging. New driver = real class in `drivers.py`, register its address in `services.DRIVERS`, a simulated twin in `simulated.py`, and a test built from one real raw reading.
+- **Also on the box:** CH340 USB-RS485 adapter for the solar charge controller (Modbus, model not identified yet, no driver). Printable sensor shield: `hardware/sensor-shield/`.
 
 ## Known gotchas
 
