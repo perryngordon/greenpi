@@ -211,3 +211,144 @@ class SHTC3Driver:
 
     def close(self):
         self.bus.close()
+
+
+# --- Bosch BME680 / BME688 (temperature, humidity, pressure; gas unused) ---
+
+_BME68X_CHIP_ID = 0x61          # same for BME680 and BME688 (register 0xD0)
+_BME68X_REG_CHIP_ID = 0xD0
+_BME68X_REG_COEFF1 = 0x8A       # 23 bytes of calibration data
+_BME68X_REG_COEFF2 = 0xE1       # 14 bytes of calibration data
+_BME68X_REG_CTRL_GAS_0 = 0x70   # bit 3 heat_off
+_BME68X_REG_CTRL_GAS_1 = 0x71   # run_gas bits
+_BME68X_REG_CTRL_HUM = 0x72
+_BME68X_REG_STATUS = 0x1D       # bit 7 new_data_0
+_BME68X_REG_CTRL_MEAS = 0x74
+_BME68X_REG_CONFIG = 0x75
+_BME68X_REG_FIELD0 = 0x1F       # press(3) temp(3) hum(2)
+_BME68X_OS_2X, _BME68X_OS_4X, _BME68X_OS_8X = 2, 3, 4
+_BME68X_FILTER_3 = 2
+_BME68X_FORCED_MODE = 1
+
+
+def _s8(v):
+    return v - 256 if v > 127 else v
+
+
+def _s16(v):
+    return v - 65536 if v > 32767 else v
+
+
+class BME688Driver:
+    """
+    Driver for the SparkFun BME688 (Qwiic) environmental sensor; also fits
+    the BME680. Address 0x77 by default, 0x76 with the ADR jumper changed.
+
+    Takes one forced-mode measurement of temperature, humidity and pressure.
+    The gas heater is kept OFF: it warms the chip and would make the
+    temperature read high, and we do not use the gas (VOC) reading.
+    Compensation uses the floating-point formulas from Bosch's BME68x API.
+    """
+
+    def __init__(self, bus_number: int = 1, address: int = 0x77):
+        self.bus_number = bus_number
+        self.address = address
+        self.bus = smbus2.SMBus(bus_number)
+
+    def _read(self, register: int, length: int):
+        return self.bus.read_i2c_block_data(self.address, register, length)
+
+    def _write(self, register: int, value: int):
+        self.bus.write_byte_data(self.address, register, value)
+
+    def read_id(self) -> int:
+        return self.bus.read_byte_data(self.address, _BME68X_REG_CHIP_ID)
+
+    def _read_calibration(self) -> Dict[str, int]:
+        c = self._read(_BME68X_REG_COEFF1, 23) + self._read(_BME68X_REG_COEFF2, 14)
+        return {
+            "t1": (c[32] << 8) | c[31], "t2": _s16((c[1] << 8) | c[0]), "t3": _s8(c[2]),
+            "p1": (c[5] << 8) | c[4], "p2": _s16((c[7] << 8) | c[6]), "p3": _s8(c[8]),
+            "p4": _s16((c[11] << 8) | c[10]), "p5": _s16((c[13] << 8) | c[12]),
+            "p6": _s8(c[15]), "p7": _s8(c[14]), "p8": _s16((c[19] << 8) | c[18]),
+            "p9": _s16((c[21] << 8) | c[20]), "p10": c[22],
+            "h1": (c[25] << 4) | (c[24] & 0x0F), "h2": (c[23] << 4) | (c[24] >> 4),
+            "h3": _s8(c[26]), "h4": _s8(c[27]), "h5": _s8(c[28]), "h6": c[29], "h7": _s8(c[30]),
+        }
+
+    def read_raw_data(self) -> Optional[Dict[str, float]]:
+        """One forced-mode measurement: raw ADC counts plus the chip's calibration."""
+        try:
+            if self.read_id() != _BME68X_CHIP_ID:
+                return None
+            calib = self._read_calibration()
+            self._write(_BME68X_REG_CTRL_GAS_1, 0x00)   # no gas conversion
+            self._write(_BME68X_REG_CTRL_GAS_0, 0x08)   # heater off
+            self._write(_BME68X_REG_CTRL_HUM, _BME68X_OS_2X)
+            self._write(_BME68X_REG_CONFIG, _BME68X_FILTER_3 << 2)
+            self._write(_BME68X_REG_CTRL_MEAS,
+                        (_BME68X_OS_8X << 5) | (_BME68X_OS_4X << 2) | _BME68X_FORCED_MODE)
+            for _ in range(20):                          # typically ~25 ms
+                time.sleep(0.01)
+                if self.bus.read_byte_data(self.address, _BME68X_REG_STATUS) & 0x80:
+                    break
+            else:
+                return None
+            d = self._read(_BME68X_REG_FIELD0, 8)
+            return {
+                "pres_adc": float((d[0] << 12) | (d[1] << 4) | (d[2] >> 4)),
+                "temp_adc": float((d[3] << 12) | (d[4] << 4) | (d[5] >> 4)),
+                "hum_adc": float((d[6] << 8) | d[7]),
+                **{f"cal_{k}": float(v) for k, v in calib.items()},
+            }
+        except OSError as e:
+            print(f"Error reading BME688: {e}")
+            return None
+
+    @staticmethod
+    def compensate(raw: Dict[str, float]) -> Dict[str, float]:
+        """Returns temperature_c, humidity_pct, pressure_hpa (Bosch float formulas)."""
+        k = {key[4:]: v for key, v in raw.items() if key.startswith("cal_")}
+        t_adc, p_adc, h_adc = raw["temp_adc"], raw["pres_adc"], raw["hum_adc"]
+
+        var1 = ((t_adc / 16384.0) - (k["t1"] / 1024.0)) * k["t2"]
+        var2 = ((t_adc / 131072.0) - (k["t1"] / 8192.0)) ** 2 * (k["t3"] * 16.0)
+        t_fine = var1 + var2
+        temp_c = t_fine / 5120.0
+
+        var1 = (t_fine / 2.0) - 64000.0
+        var2 = var1 * var1 * (k["p6"] / 131072.0)
+        var2 = var2 + var1 * k["p5"] * 2.0
+        var2 = (var2 / 4.0) + (k["p4"] * 65536.0)
+        var1 = (((k["p3"] * var1 * var1) / 16384.0) + (k["p2"] * var1)) / 524288.0
+        var1 = (1.0 + (var1 / 32768.0)) * k["p1"]
+        pres = 1048576.0 - p_adc
+        if var1 != 0:
+            pres = ((pres - (var2 / 4096.0)) * 6250.0) / var1
+            var1 = (k["p9"] * pres * pres) / 2147483648.0
+            var2 = pres * (k["p8"] / 32768.0)
+            var3 = (pres / 256.0) ** 3 * (k["p10"] / 131072.0)
+            pres = pres + (var1 + var2 + var3 + (k["p7"] * 128.0)) / 16.0
+        else:
+            pres = 0.0
+
+        var1 = h_adc - ((k["h1"] * 16.0) + ((k["h3"] / 2.0) * temp_c))
+        var2 = var1 * ((k["h2"] / 262144.0) * (1.0 + ((k["h4"] / 16384.0) * temp_c)
+                                               + ((k["h5"] / 1048576.0) * temp_c * temp_c)))
+        var3 = k["h6"] / 16384.0
+        var4 = k["h7"] / 2097152.0
+        hum = var2 + ((var3 + (var4 * temp_c)) * var2 * var2)
+        hum = max(0.0, min(100.0, hum))
+        return {"temperature_c": temp_c, "humidity_pct": hum, "pressure_hpa": pres / 100.0}
+
+    def calibrate(self, raw: Dict[str, float]) -> Dict[str, float]:
+        """Converts raw counts into temperature (degF), humidity (%) and pressure (hPa)."""
+        v = self.compensate(raw)
+        return {
+            "temperature_f": round(v["temperature_c"] * 9.0 / 5.0 + 32.0, 2),
+            "humidity_pct": round(v["humidity_pct"], 2),
+            "pressure_hpa": round(v["pressure_hpa"], 1),
+        }
+
+    def close(self):
+        self.bus.close()

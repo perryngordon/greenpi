@@ -76,6 +76,22 @@ class SampleSensorsCommandTests(TestCase):
         self.assertEqual(SensorReading.objects.get().sensor.address, '0x70')
 
 
+class BME688CompensationTests(TestCase):
+    # One raw reading captured from the real SparkFun BME688 on the Pi
+    # (2026-11-26, indoors, ~8,500 ft); a SHTC3 next to it read 69 F / 16 %.
+    RAW = {'pres_adc': 494207, 'temp_adc': 491279, 'hum_adc': 13340,
+           'cal_t1': 26267, 'cal_t2': 26647, 'cal_t3': 3, 'cal_p1': 35564, 'cal_p2': -10334,
+           'cal_p3': 88, 'cal_p4': 8351, 'cal_p5': -124, 'cal_p6': 30, 'cal_p7': 25,
+           'cal_p8': -604, 'cal_p9': -3434, 'cal_p10': 30, 'cal_h1': 652, 'cal_h2': 1033,
+           'cal_h3': 0, 'cal_h4': 45, 'cal_h5': 20, 'cal_h6': 120, 'cal_h7': -100}
+
+    def test_real_sample_converts_to_sane_values(self):
+        from .drivers import BME688Driver
+        with mock.patch('sensors.drivers.smbus2.SMBus'):
+            values = BME688Driver(address=0x76).calibrate({k: float(v) for k, v in self.RAW.items()})
+        self.assertEqual(values, {'temperature_f': 72.61, 'humidity_pct': 13.22, 'pressure_hpa': 735.6})
+
+
 class PruneReadingsCommandTests(TestCase):
     def _reading(self, sensor, age_days):
         r = SensorReading.objects.create(sensor=sensor, values={'v': age_days})
