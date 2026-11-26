@@ -47,7 +47,13 @@ class Command(BaseCommand):
         for sensor in sensors:
             if not sensor.is_sampling_due(now):
                 continue
-            values = read_calibrated(sensor.address)
+            try:
+                values = read_calibrated(sensor.address)
+            except OSError as exc:
+                # One flaky sensor or a disturbed I2C bus must not stop the
+                # others from being logged; retry it on the next pass.
+                self.stderr.write(f"Read error on {sensor}: {exc}; skipping.")
+                continue
             if values is None:
                 self.stderr.write(f"Failed to read {sensor}; skipping.")
                 continue

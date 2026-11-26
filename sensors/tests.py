@@ -62,6 +62,19 @@ class SampleSensorsCommandTests(TestCase):
             call_command('sample_sensors')
         self.assertEqual(SensorReading.objects.count(), 0)
 
+    def test_bus_error_on_one_sensor_does_not_stop_the_others(self):
+        Sensor.objects.create(address='0x74', sensor_type='i2c', status='configured')
+        Sensor.objects.create(address='0x70', sensor_type='i2c', status='configured')
+
+        def read(address):
+            if address == '0x74':
+                raise OSError(5, 'Input/output error')
+            return {'temperature_f': 70.0}
+
+        with mock.patch('sensors.management.commands.sample_sensors.read_calibrated', side_effect=read):
+            call_command('sample_sensors')
+        self.assertEqual(SensorReading.objects.get().sensor.address, '0x70')
+
 
 class PruneReadingsCommandTests(TestCase):
     def _reading(self, sensor, age_days):
