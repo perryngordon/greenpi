@@ -9,7 +9,7 @@ You'll work in three places:
 | Where | What happens there |
 |---|---|
 | **Your laptop** | Code changes, testing with simulated sensors + real greenhouse data |
-| **The greenhouse** | The Pi. Your laptop joins its `GreenPi_WiFi` hotspot (no internet needed) to install updates and bring data home |
+| **The greenhouse** | The Pi. Your laptop joins its `Ward_Greenhouse` hotspot (no internet needed) to install updates and bring data home |
 | **GitHub** | Where the code lives (`perryngordon/greenpi`, branch `step1-services`). Ask the owner for collaborator access to push |
 
 ## 1. One-time setup
@@ -32,7 +32,7 @@ You'll work in three places:
    It asks you to choose a password for the local `admin` web account (only
    on your laptop).
 4. **Passwords to keep in your password manager** (get them from the owner):
-   - `GreenPi_WiFi` hotspot password (also on the QR sign)
+   - `Ward_Greenhouse` hotspot password (also on the QR sign)
    - the Pi's Linux `admin` password (needed once, the first time your laptop
      connects; after that your SSH key is used)
    - your own web account on the Pi (an admin creates it on the People page)
@@ -58,7 +58,7 @@ claude                       # in another Terminal tab, in ~/greenpi
 ## 3. A greenhouse visit
 
 1. At home (internet): `git pull` so you have the latest code.
-2. At the greenhouse: join **GreenPi_WiFi** (the Mac will say "no internet";
+2. At the greenhouse: join **Ward_Greenhouse** (the Mac will say "no internet";
    that's expected), then:
    ```bash
    cd ~/greenpi

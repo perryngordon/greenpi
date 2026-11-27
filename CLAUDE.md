@@ -10,7 +10,7 @@ GreenPi is a Django web app for monitoring/controlling a greenhouse from a singl
 
 A virtualenv exists at `venv/`; dependencies are pinned in `requirements.txt`. On the device the app runs as systemd services — see `deploy/README.md` (`deploy/install.sh` is the idempotent installer).
 
-**Developing on a laptop (Mac/Linux)** — see `docs/DEVELOPING.md`: `deploy/setup-local.sh` (one-time), `deploy/run-local.sh` (app + sampler with simulated sensors at :8000), `deploy/onsite-update.sh` (on site via the `GreenPi_WiFi` hotspot: push code, install, fetch data to `~/greenpi-snapshots/`), `deploy/load-local.sh` (load that data locally). Windows equivalents: `deploy/*.ps1`. Always set `GREENPI_STAGING=1` off-device (the scripts do).
+**Developing on a laptop (Mac/Linux)** — see `docs/DEVELOPING.md`: `deploy/setup-local.sh` (one-time), `deploy/run-local.sh` (app + sampler with simulated sensors at :8000), `deploy/onsite-update.sh` (on site via the `Ward_Greenhouse` hotspot: push code, install, fetch data to `~/greenpi-snapshots/`), `deploy/load-local.sh` (load that data locally). Windows equivalents: `deploy/*.ps1`. Always set `GREENPI_STAGING=1` off-device (the scripts do).
 
 ```bash
 source venv/bin/activate
@@ -46,7 +46,7 @@ Off-device, use staging mode: real I2C calls fail without a bus (`smbus2` isn't 
 
 - **Pi:** Raspberry Pi CM4 on the official CM4 IO Board, boots from eMMC, hostname `greenhouse`, user `admin`. Data (backups, photos, surveys, cache) on a USB stick at `/srv/greenpi-data` (`GREENPI_DATA_DIR`). Services: `greenpi-web` (gunicorn :80), `greenpi-sampler` (reads due sensors every 10 s tick), `greenpi-backup.timer` (02:30 DB snapshot), `hostapd` + `dnsmasq`.
 - **Clock:** no internet on site, so the IO Board's PCF85063A RTC (CR2032; `i2c-10` @0x51, enabled by `deploy/install.sh` in `config.txt`) sets the time at boot; `onsite-update` also sets it from the laptop. `fake-hwclock` is the fallback.
-- **Radios:** no onboard Wi-Fi on this CM4. `wlap0` = Linksys AE1200 USB, the `GreenPi_WiFi` hotspot at 10.42.0.1 (dnsmasq answers `greenhouse` / `greenhouse.lan`, no default route so phones keep mobile data). `wlsta0` = Comfast RTL8188EUS USB, Wi-Fi client via NetworkManager for an uplink. Both pinned by MAC. `wg0` is the owner's remote-access VPN — don't touch.
+- **Radios:** no onboard Wi-Fi on this CM4. `wlap0` = Linksys AE1200 USB, the `Ward_Greenhouse` hotspot at 10.42.0.1 (name and password live in the DB, set on the Config page; `GreenPi_WiFi` in the code is only the fresh-install default; the QR sign encodes the name, so reprint it after a rename; dnsmasq answers `greenhouse` / `greenhouse.lan`, no default route so phones keep mobile data). `wlsta0` = Comfast RTL8188EUS USB, Wi-Fi client via NetworkManager for an uplink. Both pinned by MAC. `wg0` is the owner's remote-access VPN — don't touch.
 - **Sensors (I2C bus 1, Qwiic, some via SparkFun QwiicBus Ethernet extenders):**
 
   | Addr | Board | Driver | Notes |

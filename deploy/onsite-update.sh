@@ -5,7 +5,7 @@
 # bring the Pi's data home (database snapshot, photos, Wi-Fi surveys).
 # Works without internet: the laptop talks straight to the Pi.
 #
-#   On site (laptop joined to GreenPi_WiFi):  deploy/onsite-update.sh
+#   On site (laptop joined to Ward_Greenhouse):  deploy/onsite-update.sh
 #   Another address (e.g. over a VPN):        deploy/onsite-update.sh --host 10.8.0.21
 #   Only fetch data, no code update:          deploy/onsite-update.sh --data-only
 #   Code only, no data:                       deploy/onsite-update.sh --no-data
@@ -43,7 +43,7 @@ if [ "$CODE" = 1 ]; then
     fi
     echo "Pushing $BRANCH to admin@$PI:greenpi ..."
     git push "admin@$PI:greenpi" "$BRANCH:$BRANCH" \
-        || { echo "git push failed (on site? check you're joined to GreenPi_WiFi)" >&2; exit 1; }
+        || { echo "git push failed (on site? check you're joined to Ward_Greenhouse)" >&2; exit 1; }
     echo "Running the installer on the Pi ..."
     ssh "admin@$PI" "cd ~/greenpi && git checkout -q $BRANCH && deploy/install.sh"
 fi

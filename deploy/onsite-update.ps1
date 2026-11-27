@@ -2,7 +2,7 @@
 # bring the Pi's data home (database snapshot, photos, Wi-Fi surveys) for the
 # staging copy. Works without internet: the laptop talks straight to the Pi.
 #
-#   On site (laptop joined to GreenPi_WiFi):   .\deploy\onsite-update.ps1
+#   On site (laptop joined to Ward_Greenhouse):   .\deploy\onsite-update.ps1
 #   From anywhere on the VPN:                   .\deploy\onsite-update.ps1 -PiHost 10.8.0.21
 #   Only fetch data, no code update:            .\deploy\onsite-update.ps1 -DataOnly
 #   Back home, load the data into staging:      .\deploy\push-snapshot.ps1
@@ -31,7 +31,7 @@ if (-not $DataOnly) {
 
     Write-Host "Pushing $Branch to admin@${PiHost}:greenpi ..."
     git push "admin@${PiHost}:greenpi" "${Branch}:${Branch}"
-    if ($LASTEXITCODE -ne 0) { throw "git push failed (on site? check you're joined to GreenPi_WiFi)" }
+    if ($LASTEXITCODE -ne 0) { throw "git push failed (on site? check you're joined to Ward_Greenhouse)" }
 
     Write-Host "Running the installer on the Pi ..."
     ssh "admin@$PiHost" "cd ~/greenpi && git checkout -q $Branch && deploy/install.sh"

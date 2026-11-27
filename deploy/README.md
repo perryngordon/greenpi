@@ -29,7 +29,7 @@ GREENPI_LONGITUDE=...        # (decimal degrees, west is negative)
 | `greenpi-web` | gunicorn on :80 (static files via whitenoise; works offline) |
 | `greenpi-sampler` | `manage.py sample_sensors --loop` stores configured sensors (default 1/min) |
 | `greenpi-backup.timer` | 02:30 nightly SQLite snapshot to `/srv/greenpi-data/backups/db` (keeps 30) |
-| `hostapd` + `dnsmasq` + `greenpi-ap-ip` | hotspot `GreenPi_WiFi` on `wlap0`, 10.42.0.1/24, no default route handed out |
+| `hostapd` + `dnsmasq` + `greenpi-ap-ip` | hotspot `Ward_Greenhouse` on `wlap0`, 10.42.0.1/24, no default route handed out |
 
 ## Radios
 
@@ -46,7 +46,7 @@ Names are pinned by MAC in `deploy/network/*.link`; update the MACs there if a d
 - **On site, no internet (Windows laptop):** one-time setup:
   `winget install Git.Git`, then `git clone https://github.com/perryngordon/greenpi.git` and
   `git checkout step1-services` (at home, while online; `git pull` to refresh before a visit).
-  At the greenhouse: join **GreenPi_WiFi**, then from the repo folder in PowerShell:
+  At the greenhouse: join **Ward_Greenhouse**, then from the repo folder in PowerShell:
   `.\deploy\onsite-update.ps1`. It pushes the branch straight to the Pi (the Pi's repo accepts
   pushes to its checked-out branch: `receive.denyCurrentBranch updateInstead`), runs `install.sh`,
   then copies a fresh database snapshot, photos and Wi-Fi surveys to `~\greenpi-snapshots\`.
